@@ -1,0 +1,9 @@
+azure-ai-projects
+azure-identity
+azure-core
+opentelemetry-api
+opentelemetry-sdk
+opentelemetry-exporter-otlp
+openai
+mcp
+requests
