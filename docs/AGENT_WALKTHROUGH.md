@@ -272,6 +272,6 @@ main_loop()
                     ├── git clone infrastructure repo
                     ├── Patch YAML manifest
                     ├── git commit
-                    └── Tier 1: push to main
-                        Tier 2: push branch + create PR
+                    ├── [Tier 1]: git push main
+                    └── [Tier 2]: git push branch → Create PR
 ```

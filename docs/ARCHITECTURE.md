@@ -218,9 +218,11 @@ Each tool is defined as a JSON schema with typed parameters, descriptions, and r
 │     {name: "patch_pod_limits", args: {cpu: "2000m", mem: "2Gi"}}│
 │                                                                 │
 │  5. agent.py → git clone → regex patch YAML → git commit        │
-│     → git push branch → POST GitHub API → Create PR             │
 │                                                                 │
-│  6. Human reviews PR → Merge → Argo CD syncs → Cluster healed   │
+│  6a. [Tier 1] → git push main → Argo CD syncs → Healed          │
+│                                                                 │
+│  6b. [Tier 2] → git push branch → Create PR                     │
+│                 Human Reviews → Merge → Argo CD syncs → Healed  │
 │                                                                 │
 └─────────────────────────────────────────────────────────────────┘
 ```
