@@ -43,19 +43,23 @@ Modern Kubernetes clusters generate thousands of signals per minute — metrics,
 
 ```mermaid
 flowchart TD
-    A["🔍 SigNoz (Observability Backend)"] -->|"PromQL metrics"| B["🤖 SRE Copilot Agent"]
-    B -->|"Raw telemetry + prompt"| C["🧠 Azure OpenAI (GPT-5-mini)"]
-    C -->|"Tool call: patch_pod_limits"| B
-    B -->|"git push + create PR"| D["📦 GitHub (Infrastructure Repo)"]
-    D -->|"Human merges PR"| E["🔄 Argo CD (GitOps Sync)"]
-    E -->|"Applies fix to cluster"| F["✅ Cluster Healed"]
+    A["🔍 SigNoz"] -->|"PromQL metrics"| B["🤖 SRE Copilot Agent"]
+    B -->|"Raw telemetry + prompt"| C["🧠 Azure OpenAI"]
+    C -->|"Tool call decision"| D{"Disruptiveness?"}
+
+    D -->|"Low · scale_deployment"| T1["⚡ Tier 1: Auto-Push to main"]
+    D -->|"High · rollback, patch, drain"| T2["🛡️ Tier 2: Create PR for Review"]
+
+    T1 -->|"Argo CD syncs"| H["✅ Cluster Healed"]
+    T2 -->|"Human approves + merges"| H
 
     style A fill:#ef4444,stroke:#dc2626,color:#fff
     style B fill:#f59e0b,stroke:#d97706,color:#000
     style C fill:#8b5cf6,stroke:#7c3aed,color:#fff
-    style D fill:#24292e,stroke:#1b1f23,color:#fff
-    style E fill:#10b981,stroke:#059669,color:#fff
-    style F fill:#3b82f6,stroke:#2563eb,color:#fff
+    style D fill:#6b7280,stroke:#4b5563,color:#fff
+    style T1 fill:#10b981,stroke:#059669,color:#fff
+    style T2 fill:#f97316,stroke:#ea580c,color:#fff
+    style H fill:#3b82f6,stroke:#2563eb,color:#fff
 ```
 
 **The Observe → Think → Act loop runs autonomously, 24/7, inside your cluster.**
