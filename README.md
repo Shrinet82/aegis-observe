@@ -158,6 +158,19 @@ aegis-observe/
 │   ├── agent.py                           # The core autonomous SRE agent
 │   └── requirements.txt                   # Python dependencies
 │
+├── mlops-pipeline/                        # The full MLOps fraud-detection pipeline
+│   ├── app.py                             # FastAPI inference server
+│   ├── train.py                           # Model training script
+│   ├── test.py                            # Unit tests
+│   ├── data_prep.py                       # Data preprocessing
+│   ├── drift_analysis.py                  # Statistical drift detection
+│   ├── Dockerfile                         # Container image for the API
+│   ├── requirements.txt                   # Python dependencies
+│   ├── k8s/                               # Kubernetes manifests for the pipeline
+│   ├── drift_reports/                     # Evidential drift analysis reports
+│   ├── fairness_plots/                    # ML fairness & bias analysis artifacts
+│   └── shap_plots/                        # SHAP explainability visualizations
+│
 ├── manifests/
 │   ├── sre-copilot-deployment.yaml        # K8s Deployment for the agent
 │   ├── fraud-detection-api.yaml           # Target workload for incident simulation
