@@ -1,5 +1,15 @@
 apiVersion: v1
 data:
+  requirements.txt: |
+    azure-ai-projects
+    azure-identity
+    azure-core
+    opentelemetry-api
+    opentelemetry-sdk
+    opentelemetry-exporter-otlp
+    openai
+    mcp
+    requests
   agent.py: "import os\nimport sys\nimport json\nimport subprocess\nimport logging\nimport
     requests\nimport asyncio\nfrom mcp.client.streamable_http import streamablehttp_client\nfrom
     mcp.client.session import ClientSession\nfrom openai import AzureOpenAI\nimport
@@ -211,3 +221,5 @@ kind: ConfigMap
 metadata:
   name: sre-copilot-code
   namespace: oppe2-app
+  labels:
+    app: sre-copilot
