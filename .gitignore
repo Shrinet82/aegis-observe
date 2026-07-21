@@ -1,11 +1,5 @@
-__pycache__/
-*.pyc
-*.pyo
-.env
-.env.*
-test_e2e.py
-/tmp/
-*.log
-.DS_Store
-.vscode/
-.idea/
+venv/
+pours/
+.terraform/
+terraform.tfstate*
+

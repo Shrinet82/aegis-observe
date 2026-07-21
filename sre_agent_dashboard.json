@@ -1,0 +1,67 @@
+{
+  "title": "SRE Copilot Agent Metrics",
+  "description": "Observability for the Autonomous SRE Agent",
+  "version": "v5",
+  "layout": [
+    { "h": 6, "i": "panel-1", "w": 12, "x": 0, "y": 0, "moved": false, "static": false },
+    { "h": 6, "i": "panel-2", "w": 12, "x": 12, "y": 0, "moved": false, "static": false }
+  ],
+  "widgets": [
+    {
+      "id": "panel-1",
+      "panelTypes": "graph",
+      "title": "LLM Token Usage (Tokens)",
+      "query": {
+        "queryType": "builder",
+        "builder": {
+          "queryData": [
+            {
+              "dataSource": "traces",
+              "aggregateOperator": "sum",
+              "aggregateAttribute": { "key": "gen_ai.usage.prompt_tokens", "type": "tag" },
+              "queryName": "Prompt Tokens",
+              "filters": {
+                "items": [{ "key": { "key": "service.name", "type": "resource" }, "op": "=", "value": "sre-copilot-agent" }],
+                "op": "AND"
+              }
+            },
+            {
+              "dataSource": "traces",
+              "aggregateOperator": "sum",
+              "aggregateAttribute": { "key": "gen_ai.usage.completion_tokens", "type": "tag" },
+              "queryName": "Completion Tokens",
+              "filters": {
+                "items": [{ "key": { "key": "service.name", "type": "resource" }, "op": "=", "value": "sre-copilot-agent" }],
+                "op": "AND"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "panel-2",
+      "panelTypes": "graph",
+      "title": "Agent Interventions",
+      "query": {
+        "queryType": "builder",
+        "builder": {
+          "queryData": [
+            {
+              "dataSource": "traces",
+              "aggregateOperator": "count",
+              "queryName": "Actions Executed",
+              "filters": {
+                "items": [
+                  { "key": { "key": "service.name", "type": "resource" }, "op": "=", "value": "sre-copilot-agent" },
+                  { "key": { "key": "name", "type": "tag" }, "op": "=", "value": "execute_tool" }
+                ],
+                "op": "AND"
+              }
+            }
+          ]
+        }
+      }
+    }
+  ]
+}

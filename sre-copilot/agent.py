@@ -4,10 +4,30 @@ import json
 import subprocess
 import logging
 import requests
+import asyncio
+from mcp.client.streamable_http import streamablehttp_client
+from mcp.client.session import ClientSession
 from openai import AzureOpenAI
+import time
+
+from opentelemetry import trace
+from opentelemetry.sdk.trace import TracerProvider
+from opentelemetry.sdk.trace.export import BatchSpanProcessor
+from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
+from opentelemetry.sdk.resources import Resource
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger("sre-copilot")
+
+# Setup OTel Tracing
+resource = Resource.create({"service.name": "sre-copilot-agent"})
+trace.set_tracer_provider(TracerProvider(resource=resource))
+tracer = trace.get_tracer("sre-copilot.agent")
+span_processor = BatchSpanProcessor(OTLPSpanExporter(
+    endpoint=os.environ.get("OTEL_EXPORTER_OTLP_ENDPOINT", "http://signoz-ingester.signoz.svc.cluster.local:4317"),
+    insecure=True
+))
+trace.get_tracer_provider().add_span_processor(span_processor)
 
 # Tool Definition Registry
 tools_schema = [
@@ -90,7 +110,11 @@ tools_schema = [
 ]
 
 # Core Execution Logic
+@tracer.start_as_current_span("execute_tool")
 def execute_tool(name, args, reasoning="", incident_type="Unknown Incident"):
+    span = trace.get_current_span()
+    span.set_attribute("tool.name", name)
+    span.set_attribute("tool.args", json.dumps(args))
     logger.info(f"Invoking target tool: {name} with arguments: {args}")
     try:
         github_token = os.getenv("GITHUB_TOKEN")
@@ -109,8 +133,8 @@ def execute_tool(name, args, reasoning="", incident_type="Unknown Incident"):
         
         target_file = "/tmp/repo/manifests/mlops/deployment.yaml"
         commit_msg = ""
-        is_tier_1 = name in ["scale_deployment"]
-        is_tier_2 = name in ["patch_pod_limits", "rollback_deployment", "trigger_retraining", "cordon_and_drain"]
+        is_tier_1 = name in ["scale_deployment", "patch_pod_limits"]
+        is_tier_2 = name in ["rollback_deployment", "trigger_retraining", "cordon_and_drain"]
         
         if is_tier_2:
             import time
@@ -198,7 +222,10 @@ def execute_tool(name, args, reasoning="", incident_type="Unknown Incident"):
         logger.error(f"Unexpected error in tool execution: {str(e)}")
         return f"Error: {str(e)}"
 
+@tracer.start_as_current_span("run_agent_workflow")
 def run_agent_workflow(telemetry_context: str):
+    span = trace.get_current_span()
+    span.set_attribute("incident.context", telemetry_context)
     logger.info("Starting Intelligent Diagnostic & Remediation Loop...")
     
     client = AzureOpenAI(
@@ -207,19 +234,7 @@ def run_agent_workflow(telemetry_context: str):
         azure_endpoint=os.getenv("AZURE_OPENAI_ENDPOINT")
     )
     
-    system_prompt = """
-You are an autonomous SRE Copilot Agent. 
-You will receive raw telemetry data exported from SigNoz (Prometheus/ClickHouse format).
-
-Your strict directives:
-1. Analyze the 'metric_data' time-series values.
-2. Determine if the pod is exhibiting resource starvation (e.g., memory usage spiking dangerously close to typical limits).
-3. If resource starvation is detected, you must autonomously invoke the 'patch_pod_limits' tool.
-4. You must calculate and supply the new CPU and memory arguments based on the severity of the spike.
-5. If the metrics are stable, invoke no tools and output 'HALT'.
-
-Do not ask for human permission. Execute the required tool strictly based on the telemetry evidence.
-"""
+    system_prompt = os.getenv("SYSTEM_PROMPT", "Default SRE behavior.")
     
     response = client.chat.completions.create(
         model="gpt-5-mini",
@@ -230,6 +245,9 @@ Do not ask for human permission. Execute the required tool strictly based on the
         tools=tools_schema,
         tool_choice="auto"
     )
+    
+    span.set_attribute("gen_ai.usage.prompt_tokens", response.usage.prompt_tokens if response.usage else 0)
+    span.set_attribute("gen_ai.usage.completion_tokens", response.usage.completion_tokens if response.usage else 0)
     
     response_message = response.choices[0].message
     
@@ -256,67 +274,92 @@ Do not ask for human permission. Execute the required tool strictly based on the
         logger.info(f"Telemetry evaluated. No remediation action required or safe state reached: {response_message.content}")
 
 
-import time
-
-def query_signoz_telemetry() -> str:
-    """
-    Fetches raw telemetry directly from the SigNoz API.
-    """
-    logger.info("Polling SigNoz API for live telemetry...")
+@tracer.start_as_current_span("query_signoz_mcp")
+def query_signoz_mcp() -> str:
+    span = trace.get_current_span()
+    logger.info("Polling live telemetry for fraud-detection-api anomalies via SigNoz MCP...")
     
-    signoz_url = os.getenv("SIGNOZ_API_URL", "http://localhost:3301/api/v1/query_range")
-    # PromQL query to check if memory usage is approaching limits for the specific deployment
-    promql_query = 'container_memory_usage_bytes{namespace="oppe2-app", pod=~"fraud-detection-api-.*"}'
+    mcp_endpoint = os.getenv("SIGNOZ_MCP_ENDPOINT", "http://signoz-mcp.oppe2-app.svc.cluster.local:8000/mcp")
     
-    # Query the last 5 minutes of data
-    end_time = int(time.time())
-    start_time = end_time - 300
-    
-    params = {
-        "query": promql_query,
-        "start": start_time,
-        "end": end_time,
-        "step": "60s"
-    }
-
-    try:
-        signoz_token = os.getenv("SIGNOZ_API_TOKEN", "")
-        headers = {}
-        if signoz_token:
-            headers["Authorization"] = f"Bearer {signoz_token}"
+    async def _query_mcp():
+        try:
+            # Connect to the SigNoz MCP server using Streamable HTTP
+            async with streamablehttp_client(mcp_endpoint) as (read_stream, write_stream, get_sid):
+                async with ClientSession(read_stream, write_stream) as session:
+                    await session.initialize()
+                    
+                    # Search logs for OOMKilled via MCP server's exposed tool
+                    args = {
+                        "searchText": "OOMKilled",
+                        "filter": "kubernetes.labels.app = 'fraud-detection-api'",
+                        "timeRange": "5m"
+                    }
+                    result = await session.call_tool("signoz_search_logs", args)
+                    
+                    # Parse the MCP tool execution result
+                    if hasattr(result, "content") and result.content:
+                        content_str = result.content[0].text
+                        data = json.loads(content_str)
+                        if isinstance(data, list) and len(data) > 0:
+                            # Usually log results return a list of matching logs
+                            span.set_attribute("incident.detected", True)
+                            span.set_attribute("incident.type", "OOMKilled")
+                            logger.warning("🚨 SigNoz MCP Alert: OOMKilled detected via MCP telemetry query!")
+                            return json.dumps({
+                                "incident": "OOMKilled",
+                                "deployment": "fraud-detection-api",
+                                "namespace": "oppe2-app",
+                                "error_rate": "100%",
+                                "description": "Pod terminated due to memory starvation (OOMKilled). Critical resource exhaustion detected via MCP."
+                            })
+                    
+                    span.set_attribute("incident.detected", False)
+                    return json.dumps({"status": "OK"})
+        except Exception as e:
+            logger.warning(f"SigNoz MCP unreachable or query failed, falling back to k8s api... ({e})")
+            span.set_attribute("mcp.fallback", True)
             
-        response = requests.get(signoz_url, params=params, headers=headers)
-        response.raise_for_status()
-        data = response.json()
-        
-        # If data is returned, pass the raw payload to the LLM for analysis
-        if data.get('status') == 'success' and data.get('data', {}).get('result'):
-            logger.warning("🚨 Anomalous telemetry detected via SigNoz API!")
-            return json.dumps({
-                "source": "SigNoz_PromQL",
-                "metric_data": data['data']['result'],
-                "cluster_namespace": "oppe2-app"
-            })
+            # Fallback to direct K8s API query if MCP is not responding
+            cmd = "kubectl get pods -l app=fraud-detection-api -n oppe2-app -o json"
+            try:
+                res = subprocess.run(cmd, shell=True, capture_output=True, text=True, check=True)
+                pods = json.loads(res.stdout).get("items", [])
+                for pod in pods:
+                    statuses = pod.get("status", {}).get("containerStatuses", [])
+                    for status in statuses:
+                        state = status.get("state", {})
+                        last_state = status.get("lastState", {})
+                        
+                        is_oom = False
+                        if state.get("terminated", {}).get("reason") == "OOMKilled":
+                            is_oom = True
+                        if last_state.get("terminated", {}).get("reason") == "OOMKilled":
+                            is_oom = True
+                        
+                        if is_oom:
+                            span.set_attribute("incident.detected", True)
+                            span.set_attribute("incident.type", "OOMKilled")
+                            logger.warning("🚨 Alert: OOMKilled detected in live telemetry!")
+                            return json.dumps({
+                                "incident": "OOMKilled",
+                                "deployment": "fraud-detection-api",
+                                "namespace": "oppe2-app",
+                                "error_rate": "100%",
+                                "description": "Pod terminated due to memory starvation (OOMKilled). Critical resource exhaustion detected."
+                            })
+            except Exception as e2:
+                span.record_exception(e2)
+                logger.error(f"Error polling telemetry: {e2}")
+                
+            return json.dumps({"status": "OK"})
             
-    except requests.exceptions.HTTPError as e:
-        if e.response.status_code == 401:
-            logger.warning("🚨 SigNoz API 401. Simulating anomalous telemetry for demo purposes...")
-            return json.dumps({
-                "source": "SigNoz_PromQL",
-                "metric_data": [{"metric": {"namespace": "oppe2-app", "pod": "fraud-detection-api-xxxxx"}, "values": [[1784515103, "107000000"]]}],
-                "cluster_namespace": "oppe2-app"
-            })
-        logger.error(f"Failed to query SigNoz API: {e}")
-    except Exception as e:
-        logger.error(f"Failed to query SigNoz API: {e}")
-        
-    return json.dumps({"status": "OK"})
+    return asyncio.run(asyncio.wait_for(_query_mcp(), timeout=10.0))
 
 def main_loop():
     logger.info("Starting Intelligent Remediation Loop...")
     while True:
         try:
-            mcp_data = query_signoz_telemetry()
+            mcp_data = query_signoz_mcp()
             if '"status": "OK"' not in mcp_data:
                 run_agent_workflow(mcp_data)
         except Exception as e:

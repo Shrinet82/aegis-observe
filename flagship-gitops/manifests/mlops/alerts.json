@@ -1,0 +1,71 @@
+[
+  {
+    "alertType": "logs_based_alert",
+    "alertName": "OOMKilled_Detection",
+    "description": "Alerts when a pod is terminated due to OOMKilled",
+    "evalWindow": "5m",
+    "frequency": "1m",
+    "condition": {
+      "queryType": "builder",
+      "builderQuery": {
+        "queryName": "A",
+        "aggregateOperator": "count",
+        "dataSource": "logs",
+        "filters": {
+          "items": [
+            {
+              "key": "message",
+              "operator": "ILIKE",
+              "value": "%OOMKilled%"
+            }
+          ],
+          "op": "AND"
+        }
+      },
+      "op": ">",
+      "target": 0
+    },
+    "labels": {
+      "severity": "critical",
+      "team": "sre"
+    }
+  },
+  {
+    "alertType": "metrics_based_alert",
+    "alertName": "High_Prediction_Latency",
+    "description": "Prediction endpoint latency P99 > 500ms",
+    "evalWindow": "5m",
+    "frequency": "1m",
+    "condition": {
+      "queryType": "promql",
+      "promqlQuery": {
+        "query": "histogram_quantile(0.99, sum(rate(http_server_duration_milliseconds_bucket{http_route=\"/predict\"}[5m])) by (le))"
+      },
+      "op": ">",
+      "target": 500
+    },
+    "labels": {
+      "severity": "warning",
+      "team": "mlops"
+    }
+  },
+  {
+    "alertType": "metrics_based_alert",
+    "alertName": "High_Error_Rate",
+    "description": "More than 5% of requests are returning 5xx errors",
+    "evalWindow": "5m",
+    "frequency": "1m",
+    "condition": {
+      "queryType": "promql",
+      "promqlQuery": {
+        "query": "sum(rate(http_server_requests_total{http_status_code=~\"5..\"}[5m])) / sum(rate(http_server_requests_total[5m])) * 100"
+      },
+      "op": ">",
+      "target": 5
+    },
+    "labels": {
+      "severity": "critical",
+      "team": "sre"
+    }
+  }
+]

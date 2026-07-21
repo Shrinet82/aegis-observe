@@ -1,0 +1,40 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mlflow-server
+  namespace: oppe2-app
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: mlflow
+  template:
+    metadata:
+      labels:
+        app: mlflow
+    spec:
+      nodeSelector:
+        role: mlops
+      containers:
+      - name: mlflow
+        image: python:3.9-slim
+        command:
+        - /bin/sh
+        - -c
+        - "pip install mlflow==3.1.1 && mlflow server --host 0.0.0.0 --port 8000"
+        ports:
+        - containerPort: 8000
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: mlflow-service
+  namespace: oppe2-app
+spec:
+  selector:
+    app: mlflow
+  ports:
+    - protocol: TCP
+      port: 8000
+      targetPort: 8000
+  type: ClusterIP

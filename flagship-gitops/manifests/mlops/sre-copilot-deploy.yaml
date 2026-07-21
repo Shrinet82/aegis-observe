@@ -1,0 +1,73 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: sre-copilot
+  namespace: oppe2-app
+  labels:
+    app: sre-copilot
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: sre-copilot
+  template:
+    metadata:
+      labels:
+        app: sre-copilot
+    spec:
+      serviceAccountName: telemetry-access
+      nodeSelector:
+        role: mlops
+      containers:
+        - name: copilot
+          image: python:3.11-slim
+          command:
+            - /bin/bash
+            - -c
+            - "apt-get update && apt-get install -y curl git && curl -LO https://dl.k8s.io/release/v1.30.0/bin/linux/amd64/kubectl && chmod +x kubectl && mv kubectl /usr/local/bin/ && pip install -r /app/requirements.txt && python /app/agent.py"
+          volumeMounts:
+            - name: code
+              mountPath: /app
+          env:
+            - name: AZURE_OPENAI_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: azure-ai-secret
+                  key: api-key
+            - name: GITHUB_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: git-credentials
+                  key: github-token
+            - name: GITHUB_REPO_URL
+              value: "github.com/Shrinet82/flagship-gitops.git"
+            - name: SYSTEM_PROMPT
+              value: |
+                You are an advanced, deterministic Autonomous SRE Agent tasked with governing an enterprise MLOps cluster. You analyze incoming telemetry from the SigNoz MCP hook.
+
+                You must run every anomaly through the following Strict Diagnostic Guardrail Matrix before choosing an action:
+
+                1. Traffic Spike (Inference Latency Spike, High QPS) 
+                   -> ACTION: Invoke `scale_deployment`
+                2. Resource Starvation (OOMKilled Event, Memory Limit > 95%) 
+                   -> ACTION: Invoke `patch_pod_limits`
+                3. Bad Release (CrashLoopBackOff, ImagePullBackOff, 5xx Error Spike post-sync) 
+                   -> ACTION: Invoke `rollback_deployment`
+                4. Model Drift (Prediction Confidence Metric < 60%) 
+                   -> ACTION: Invoke `trigger_retraining`
+                5. Hardware/Node Pressure (Node DiskPressure, Node MemoryPressure) 
+                   -> ACTION: Invoke `cordon_and_drain`
+
+                CRITICAL SAFETY INTERLOCK (PHASE 2):
+                If the telemetry indicates a root cause signature that does NOT match one of these five specific scenarios (e.g., database connection pool drops, expired certificates, internal network partition, storage volume corruption):
+                - You are STRICTLY FORBIDDEN from invoking any tool.
+                - Do not attempt to guess or apply a partial fix.
+                - You must immediately output a JSON payload with the status "HALT_INSUFFICIENT_TOOLS", explicitly listing the unserviceable error signature, and halt your workflow to await human intervention.
+            - name: OTEL_EXPORTER_OTLP_ENDPOINT
+              value: "http://signoz-ingester.signoz.svc.cluster.local:4317"
+            - name: AZURE_OPENAI_ENDPOINT
+              value: "https://shashwatpratap94550-3810-resourc.services.ai.azure.com/"
+      volumes:
+        - name: code
+          configMap:
+            name: sre-copilot-code
