@@ -167,7 +167,7 @@ data:
     write_stream) as session:\n                    await session.initialize()\n                    \n
     \                   # Search logs for OOMKilled via MCP server's exposed tool\n
     \                   args = {\n                        \"searchText\": \"OOMKilled\",\n
-    \                       \"filter\": \"kubernetes.labels.app = 'fraud-detection-api'\",\n
+    \                       \"filter\": \"k8s.deployment.name = 'fraud-detection-api'\",\n
     \                       \"timeRange\": \"5m\"\n                    }\n                    result
     = await session.call_tool(\"signoz_search_logs\", args)\n                    \n
     \                   # Parse the MCP tool execution result\n                    if
