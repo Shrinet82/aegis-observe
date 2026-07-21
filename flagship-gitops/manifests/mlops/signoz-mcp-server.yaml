@@ -28,6 +28,8 @@ spec:
           value: "http"
         - name: MCP_SERVER_PORT
           value: "8000"
+        - name: SIGNOZ_API_TOKEN
+          value: "7PGqQgt5MPssX+a1bfVvkZxBcYk7n0MygY+FEL0qKeI="
 ---
 apiVersion: v1
 kind: Service
