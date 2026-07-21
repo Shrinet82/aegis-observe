@@ -28,7 +28,7 @@ spec:
           value: "http"
         - name: MCP_SERVER_PORT
           value: "8000"
-        - name: SIGNOZ_API_TOKEN
+        - name: SIGNOZ_API_KEY
           valueFrom:
             secretKeyRef:
               name: signoz-api-token
