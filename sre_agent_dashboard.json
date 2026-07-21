@@ -3,8 +3,24 @@
   "description": "Observability for the Autonomous SRE Agent",
   "version": "v5",
   "layout": [
-    { "h": 6, "i": "panel-1", "w": 12, "x": 0, "y": 0, "moved": false, "static": false },
-    { "h": 6, "i": "panel-2", "w": 12, "x": 12, "y": 0, "moved": false, "static": false }
+    {
+      "h": 6,
+      "i": "panel-1",
+      "w": 12,
+      "x": 0,
+      "y": 0,
+      "moved": false,
+      "static": false
+    },
+    {
+      "h": 6,
+      "i": "panel-2",
+      "w": 12,
+      "x": 12,
+      "y": 0,
+      "moved": false,
+      "static": false
+    }
   ],
   "widgets": [
     {
@@ -12,21 +28,74 @@
       "panelTypes": "graph",
       "title": "LLM Token Usage (Tokens)",
       "query": {
-        "queryType": "clickhouse_sql",
-        "clickhouse_sql": [
-          {
-            "disabled": false,
-            "legend": "Prompt Tokens",
-            "name": "A",
-            "query": "SELECT toStartOfMinute(timestamp) as time, sum(attributes_number['gen_ai.usage.prompt_tokens']) as prompt_tokens FROM signoz_traces.distributed_signoz_index_v3 WHERE serviceName='sre-copilot-agent' AND timestamp >= $start_timestamp_nano AND timestamp <= $end_timestamp_nano GROUP BY time ORDER BY time"
-          },
-          {
-            "disabled": false,
-            "legend": "Completion Tokens",
-            "name": "B",
-            "query": "SELECT toStartOfMinute(timestamp) as time, sum(attributes_number['gen_ai.usage.completion_tokens']) as completion_tokens FROM signoz_traces.distributed_signoz_index_v3 WHERE serviceName='sre-copilot-agent' AND timestamp >= $start_timestamp_nano AND timestamp <= $end_timestamp_nano GROUP BY time ORDER BY time"
-          }
-        ]
+        "queryType": "builder",
+        "builder": {
+          "queryData": [
+            {
+              "queryName": "A",
+              "dataSource": "traces",
+              "aggregateOperator": "sum",
+              "aggregateAttribute": {
+                "key": "gen_ai.usage.prompt_tokens",
+                "dataType": "float64",
+                "type": "tag",
+                "isColumn": false
+              },
+              "filters": {
+                "items": [
+                  {
+                    "id": "1",
+                    "key": {
+                      "key": "serviceName",
+                      "dataType": "string",
+                      "type": "tag",
+                      "isColumn": true
+                    },
+                    "op": "=",
+                    "value": "sre-copilot-agent"
+                  }
+                ],
+                "op": "AND"
+              },
+              "groupBy": [],
+              "expression": "A",
+              "disabled": false,
+              "legend": "Prompt Tokens"
+            },
+            {
+              "queryName": "B",
+              "dataSource": "traces",
+              "aggregateOperator": "sum",
+              "aggregateAttribute": {
+                "key": "gen_ai.usage.completion_tokens",
+                "dataType": "float64",
+                "type": "tag",
+                "isColumn": false
+              },
+              "filters": {
+                "items": [
+                  {
+                    "id": "2",
+                    "key": {
+                      "key": "serviceName",
+                      "dataType": "string",
+                      "type": "tag",
+                      "isColumn": true
+                    },
+                    "op": "=",
+                    "value": "sre-copilot-agent"
+                  }
+                ],
+                "op": "AND"
+              },
+              "groupBy": [],
+              "expression": "B",
+              "disabled": false,
+              "legend": "Completion Tokens"
+            }
+          ],
+          "queryFormulas": []
+        }
       }
     },
     {
@@ -34,15 +103,48 @@
       "panelTypes": "graph",
       "title": "Agent Interventions",
       "query": {
-        "queryType": "clickhouse_sql",
-        "clickhouse_sql": [
-          {
-            "disabled": false,
-            "legend": "Actions Executed",
-            "name": "A",
-            "query": "SELECT toStartOfMinute(timestamp) as time, count() as actions_executed FROM signoz_traces.distributed_signoz_index_v3 WHERE serviceName='sre-copilot-agent' AND name='execute_tool' AND timestamp >= $start_timestamp_nano AND timestamp <= $end_timestamp_nano GROUP BY time ORDER BY time"
-          }
-        ]
+        "queryType": "builder",
+        "builder": {
+          "queryData": [
+            {
+              "queryName": "A",
+              "dataSource": "traces",
+              "aggregateOperator": "count",
+              "filters": {
+                "items": [
+                  {
+                    "id": "1",
+                    "key": {
+                      "key": "serviceName",
+                      "dataType": "string",
+                      "type": "tag",
+                      "isColumn": true
+                    },
+                    "op": "=",
+                    "value": "sre-copilot-agent"
+                  },
+                  {
+                    "id": "2",
+                    "key": {
+                      "key": "name",
+                      "dataType": "string",
+                      "type": "tag",
+                      "isColumn": true
+                    },
+                    "op": "=",
+                    "value": "execute_tool"
+                  }
+                ],
+                "op": "AND"
+              },
+              "groupBy": [],
+              "expression": "A",
+              "disabled": false,
+              "legend": "Actions Executed"
+            }
+          ],
+          "queryFormulas": []
+        }
       }
     }
   ]
