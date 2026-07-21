@@ -29,7 +29,10 @@ spec:
         - name: MCP_SERVER_PORT
           value: "8000"
         - name: SIGNOZ_API_TOKEN
-          value: "7PGqQgt5MPssX+a1bfVvkZxBcYk7n0MygY+FEL0qKeI="
+          valueFrom:
+            secretKeyRef:
+              name: signoz-api-token
+              key: SIGNOZ_API_TOKEN
 ---
 apiVersion: v1
 kind: Service
