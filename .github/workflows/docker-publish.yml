@@ -11,7 +11,7 @@ on:
 
 env:
   REGISTRY: ghcr.io
-  IMAGE_NAME: ${{ github.repository_owner }}/fraud-app
+  IMAGE_NAME: shrinet82/fraud-app
 
 jobs:
   build-and-push:
