@@ -7,3 +7,5 @@ opentelemetry-exporter-otlp
 openai
 mcp
 requests
+pytest
+httpx
