@@ -2,4 +2,6 @@ venv/
 pours/
 .terraform/
 terraform.tfstate*
-
+__pycache__/
+*.pyc
+image.png

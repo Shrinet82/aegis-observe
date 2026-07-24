@@ -1,82 +1,112 @@
-# Aegis-Observe
+# 🛡️ Aegis-Observe: Autonomous SRE Copilot
 
-**Aegis-Observe** is an autonomous, self-healing SRE platform designed for enterprise MLOps, built specifically for the **Agents of SigNoz Hackathon**.
+[![Agents of SigNoz Hackathon](https://img.shields.io/badge/Hackathon-Agents_of_SigNoz-blueviolet?style=for-the-badge&logo=signoz)](https://signoz.io)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=for-the-badge)](https://opensource.org/licenses/MIT)
+[![Python 3.11](https://img.shields.io/badge/Python-3.11-blue?style=for-the-badge&logo=python)](https://python.org)
+[![Kubernetes](https://img.shields.io/badge/Kubernetes-k3s-326CE5?style=for-the-badge&logo=kubernetes)](https://kubernetes.io)
+[![GitOps](https://img.shields.io/badge/GitOps-ArgoCD-orange?style=for-the-badge&logo=argo)](https://argoproj.github.io/cd/)
 
-It uses a deterministic LLM-powered agent to observe application telemetry in real-time via the SigNoz MCP (Model Context Protocol) Server, automatically diagnosing incidents (like memory leaks, traffic spikes, or model drift) and proposing or applying remediation actions through GitOps.
+**Aegis-Observe** is an autonomous, self-healing SRE platform designed for enterprise MLOps, built specifically for the **Agents of SigNoz Hackathon (Track 01: AI & Agent Observability)**.
 
-## 🚀 Architecture Overview
+It connects a deterministic LLM-powered SRE agent with application telemetry in real-time using the **SigNoz Model Context Protocol (MCP) Server**. It automatically diagnoses cluster anomalies (memory starvation, traffic spikes, model drift, bad releases) and executes human-authorized remediations through GitOps and Kubernetes APIs.
+
+---
+
+## 📽️ Demo Video & Screenshot Placeholders
+
+> [!IMPORTANT]
+> **Submission Demonstration Artifacts**
+
+### 🎬 Live Demo Video
+[![Aegis-Observe Hackathon Demo Video](file:///absolute/path/to/demo_video_thumbnail.png)](https://youtube.com/watch?v=YOUR_VIDEO_ID)
+*(Click to watch the full demonstration video showing real-time MCP anomaly detection, Slack interactive authorization, and GitOps remediation)*
+
+### 📸 Visual Interface Evidence
+| Interactive Slack Proposal | Slack PR Authorized | GitHub Pull Request Created & Merged |
+| :---: | :---: | :---: |
+| ![Slack Proposal Card](file:///home/shrinet82/Opensource/SigNoz/docs/assets/slack_proposal_card.png) | ![Slack PR Authorized](file:///home/shrinet82/Opensource/SigNoz/docs/assets/slack_pr_opened.png) | ![GitHub PR #47 Merged](file:///home/shrinet82/Opensource/SigNoz/docs/assets/github_pr_merged.png) |
+
+| SigNoz Aegis Dashboard | SigNoz SRE Agent Metrics | Kubernetes Node Metrics |
+| :---: | :---: | :---: |
+| ![SigNoz Aegis Dashboard](file:///home/shrinet82/Opensource/SigNoz/docs/assets/aegis_dashboard.png) | ![SigNoz SRE Agent Metrics](file:///home/shrinet82/Opensource/SigNoz/docs/assets/sre_agent_metrics_dashboard.png) | ![K8s Node Metrics](file:///home/shrinet82/Opensource/SigNoz/docs/assets/k8s_node_metrics.png) |
+
+---
+
+## 🚀 System Architecture Overview
 
 ```mermaid
 graph TB
-    subgraph "GitOps (ArgoCD)"
-        ROOT["Root App (flagship-gitops)"]
-        ROOT --> MLOPS["MLOps App"]
-        ROOT --> VICTIM["Victim App"]
+    subgraph "GitOps Architecture (Shrinet82/flagship-gitops)"
+        ROOT["ArgoCD Root App"]
+        ROOT --> MLOPS["MLOps Manifests"]
     end
 
-    subgraph "Application Layer"
-        FRAUD["Fraud Detection API<br/>(FastAPI + OTel)"]
-        SRE["SRE Copilot Agent<br/>(LLM + Tools)"]
-        VICTIM_APP["Vulnerable App<br/>(Memory Leak Simulator)"]
+    subgraph "Kubernetes Workload Layer (oppe2-app)"
+        FRAUD["Fraud Detection API<br/>(FastAPI + OTel SDK)"]
+        AGENT["Aegis SRE Copilot Agent<br/>(Python + OTel SDK + Socket Mode)"]
+        MCP["SigNoz MCP Server<br/>(Streamable HTTP)"]
     end
 
-    subgraph "Observability (SigNoz)"
-        DASH1["Aegis Dashboard"]
-        DASH2["K8s Overview Dashboard"]
+    subgraph "Observability Layer (signoz)"
+        DASH["SigNoz Dashboard & ClickHouse Store<br/>(signoz_traces.signoz_index_v3)"]
     end
 
-    FRAUD -->|"OTLP gRPC (Traces, Metrics, Logs)"| DASH1
-    SRE -->|"Queries clickhouse via SigNoz MCP"| DASH1
-    SRE -->|"LLM Analysis"| AZURE["Azure OpenAI<br/>GPT-5-mini"]
-    SRE -->|"GitOps Remediation"| ROOT
+    subgraph "Human-in-the-Loop Gateway"
+        SLACK["Slack Workspace<br/>(Socket Mode + Block Kit)"]
+        GITHUB["GitHub Repository<br/>(PRs & Direct Commits)"]
+    end
+
+    FRAUD -->|"OTLP Traces, Metrics, Logs"| DASH
+    AGENT -->|"OTel Self-Tracing (Token Usage Spans)"| DASH
+    AGENT -->|"1. Telemetry Mining"| MCP
+    MCP -->|"Logs & Traces"| DASH
+    AGENT -->|"2. Interactive Proposal"| SLACK
+    SLACK -->|"3. Human Approval"| AGENT
+    AGENT -->|"4. Tiered Remediation"| GITHUB
+    GITHUB -->|"Sync Manifests"| ROOT
 ```
 
-## 🧠 Core Components
+---
 
-1. **SRE Copilot Agent** (`sre-copilot/`): 
-   - A Python-based autonomous agent that queries SigNoz telemetry using the SigNoz MCP server.
-   - Traces its own decisions ("Observing the Observer") using OpenTelemetry, capturing token usage and tool invocations.
-   - Uses a tiered safety model: safe actions are auto-applied via GitOps, destructive actions open a PR for human review.
-   - Enforces a strict `HALT` guardrail for unrecognized incidents.
+## 🧠 Core Capabilities & Feature Matrix
 
-2. **Fraud Detection API** (`MLOPS-Full-Data-Pipeline/`):
-   - A production-ready FastAPI application serving a scikit-learn model.
-   - Fully instrumented with OpenTelemetry (Traces, Metrics, and Logs) exporting directly to the SigNoz collector.
+| Feature | Description | File Reference |
+| :--- | :--- | :--- |
+| **SigNoz MCP Telemetry Mining** | Mines ClickHouse log streams and trace indexes via Streamable HTTP MCP tools. | [mcp_client.py](file:///home/shrinet82/Opensource/SigNoz/sre-copilot/mcp_client.py) |
+| **Circuit-Breaker Locking** | `PENDING_INCIDENTS` set locks diagnostic loops while alerts sit in Slack, preventing race conditions. | [agent.py](file:///home/shrinet82/Opensource/SigNoz/sre-copilot/agent.py) |
+| **Interactive Slack Gateway** | Slack Block Kit UI with Socket Mode (`Approve`, `PR`, `Reject`) embedding stateless payloads. | [slack_notifier.py](file:///home/shrinet82/Opensource/SigNoz/sre-copilot/slack_notifier.py) |
+| **Tiered GitOps Remediation** | Tier 1 instant push to `main` vs Tier 2 GitHub PR creation with LLM reasoning breakdown. | [gitops.py](file:///home/shrinet82/Opensource/SigNoz/sre-copilot/gitops.py) |
+| **Node Cordon & Drain** | Direct Kubernetes API node cordoning and eviction for hardware pressure. | [k8s_tools.py](file:///home/shrinet82/Opensource/SigNoz/sre-copilot/k8s_tools.py) |
+| **OTel Self-Observability** | Exports agent token consumption (`gen_ai.usage.prompt_tokens`) and tool spans to SigNoz. | [agent.py](file:///home/shrinet82/Opensource/SigNoz/sre-copilot/agent.py) |
 
-3. **GitOps Infrastructure** (`flagship-gitops/`):
-   - ArgoCD configuration that manages the deployment of the SRE Copilot and Fraud API.
-   - The SRE agent remediates issues by committing fixes directly to this repo, letting ArgoCD handle the deployment.
+---
 
-4. **Victim App Simulator** (`flagship-gitops/manifests/victim-app.yaml`):
-   - A vulnerable application that intentionally leaks memory to trigger OOMKilled events and test the SRE Copilot's response.
+## 🏆 Hackathon Rules & Reproducibility Compliance
 
-## 🛠️ Reproducibility (Foundry & SigNoz)
+### 1. SigNoz Foundry Requirement (`casting.yaml`)
+In accordance with the **Foundry & Reproducibility Check**, `casting.yaml` and `casting.yaml.lock` are located at the **root of the repository**:
+* [casting.yaml](file:///home/shrinet82/Opensource/SigNoz/casting.yaml)
+* [casting.yaml.lock](file:///home/shrinet82/Opensource/SigNoz/casting.yaml.lock)
 
-This project relies on **SigNoz** as its core observability backbone. The deployment configuration is fully reproducible.
-
-### 1. Provision Infrastructure
-We use DigitalOcean via Terraform (`flagship-infra/`) to spin up a k3s cluster.
-
-### 2. Install SigNoz via Foundry
-The project includes a `casting.yaml` and `casting.yaml.lock` in the `flagship-gitops/` directory. 
-
-To deploy SigNoz and the SigNoz MCP Server:
+To spin up the observability stack via Foundry:
 ```bash
-# Ensure you are in the flagship-gitops directory
-cd flagship-gitops
 foundry cast apply
 ```
 
-### 3. Deploy the Apps
-Once SigNoz is running, apply the ArgoCD root application to deploy the workloads:
-```bash
-kubectl apply -f flagship-gitops/root-app.yaml
-```
+### 2. SigNoz MCP Requirement
+The agent natively queries SigNoz telemetry using the official **SigNoz MCP Server** endpoint (`http://signoz-mcp.oppe2-app.svc.cluster.local:8000/mcp`) via `signoz_search_logs` and `signoz_get_trace_details`.
 
-## 📊 Observability Depth
+### 3. AI Assistance Disclosure
+In accordance with the **Agents of SigNoz Hackathon** rules, we explicitly declare that AI coding assistants (including ChatGPT, Claude, and Gemini Antigravity) were utilized during the development of this project for architectural brainstorming, boilerplate generation, unit test creation, and pair programming. All core logic, safety guardrails, MCP server integrations, and telemetry configurations were thoroughly audited, tested, and validated by human developers.
 
-- **Traces**: End-to-end tracing on the ML predictions (`app.py`) AND the SRE Agent (`agent.py`).
-- **Metrics**: Standard resource utilization metrics + custom prediction metrics.
-- **Logs**: Structured JSON logs (via GCP formatter) exported natively via OpenTelemetry Logs SDK.
-- **MCP Server**: The agent natively queries the SigNoz ClickHouse backend via the SigNoz MCP server to fetch real-time telemetry context.
-- **Dashboards**: Features the custom **Aegis Dashboard**, providing fleet health metrics, resource saturation, and a live audit stream of the SRE agent's actions.
+---
+
+## 📖 Complete Technical Documentation
+
+For in-depth architectural guides, configuration details, and query schemas, refer to the technical docs:
+
+* 📋 **[PROJECT_OVERVIEW.md](file:///home/shrinet82/Opensource/SigNoz/PROJECT_OVERVIEW.md)** — Devpost Project Overview & Full Vision
+* 🏗️ **[docs/ARCHITECTURE.md](file:///home/shrinet82/Opensource/SigNoz/docs/ARCHITECTURE.md)** — Deep System Architecture & Telemetry Pipeline
+* 💬 **[docs/SLACK_UX_AND_HITL.md](file:///home/shrinet82/Opensource/SigNoz/docs/SLACK_UX_AND_HITL.md)** — Interactive Slack UX, Socket Mode & Circuit Breaker Guide
+* 🐙 **[docs/GITOPS_AND_REMEDIATION.md](file:///home/shrinet82/Opensource/SigNoz/docs/GITOPS_AND_REMEDIATION.md)** — GitOps Tiering & Kubernetes Remediation Engine
+* 📊 **[docs/DASHBOARDS_AND_OBSERVABILITY.md](file:///home/shrinet82/Opensource/SigNoz/docs/DASHBOARDS_AND_OBSERVABILITY.md)** — SigNoz Dashboards & ClickHouse SQL Queries

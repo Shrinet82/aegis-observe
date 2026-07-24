@@ -1,6 +1,12 @@
 {
   "title": "SRE Copilot Agent Metrics",
   "description": "Observability for the Autonomous SRE Agent",
+  "tags": [
+    "sre-copilot",
+    "agent",
+    "llm",
+    "signoz"
+  ],
   "version": "v5",
   "layout": [
     {
@@ -20,15 +26,33 @@
       "y": 0,
       "moved": false,
       "static": false
+    },
+    {
+      "h": 8,
+      "i": "panel-3",
+      "w": 24,
+      "x": 0,
+      "y": 6,
+      "moved": false,
+      "static": false
     }
   ],
+  "panelMap": {},
   "widgets": [
     {
       "id": "panel-1",
+      "title": "LLM Token Usage (Prompt & Completion)",
+      "description": "Real-time prompt and completion token consumption for GPT model reasoning spans.",
       "panelTypes": "graph",
-      "title": "LLM Token Usage (Tokens)",
+      "opacity": "1",
+      "nullZeroValues": "zero",
+      "lineInterpolation": "spline",
+      "lineStyle": "solid",
+      "timePreferance": "GLOBAL_TIME",
+      "legendPosition": "bottom",
       "query": {
         "queryType": "builder",
+        "unit": "short",
         "builder": {
           "queryData": [
             {
@@ -44,12 +68,9 @@
               "filters": {
                 "items": [
                   {
-                    "id": "1",
                     "key": {
                       "key": "serviceName",
-                      "dataType": "string",
-                      "type": "tag",
-                      "isColumn": true
+                      "type": "tag"
                     },
                     "op": "=",
                     "value": "sre-copilot-agent"
@@ -75,12 +96,9 @@
               "filters": {
                 "items": [
                   {
-                    "id": "2",
                     "key": {
                       "key": "serviceName",
-                      "dataType": "string",
-                      "type": "tag",
-                      "isColumn": true
+                      "type": "tag"
                     },
                     "op": "=",
                     "value": "sre-copilot-agent"
@@ -94,42 +112,51 @@
               "legend": "Completion Tokens"
             }
           ],
-          "queryFormulas": []
+          "queryFormulas": [],
+          "queryTraceOperator": []
         }
       }
     },
     {
       "id": "panel-2",
+      "title": "Agent Remediation Interventions",
+      "titleCount": 0,
+      "description": "Frequency of automated tool executions (scale_deployment, patch_pod_limits, trigger_retraining).",
       "panelTypes": "graph",
-      "title": "Agent Interventions",
+      "opacity": "1",
+      "nullZeroValues": "zero",
+      "lineInterpolation": "spline",
+      "lineStyle": "solid",
+      "timePreferance": "GLOBAL_TIME",
+      "legendPosition": "bottom",
       "query": {
         "queryType": "builder",
+        "unit": "short",
         "builder": {
           "queryData": [
             {
               "queryName": "A",
               "dataSource": "traces",
               "aggregateOperator": "count",
+              "aggregateAttribute": {
+                "key": "",
+                "dataType": "",
+                "type": ""
+              },
               "filters": {
                 "items": [
                   {
-                    "id": "1",
                     "key": {
                       "key": "serviceName",
-                      "dataType": "string",
-                      "type": "tag",
-                      "isColumn": true
+                      "type": "tag"
                     },
                     "op": "=",
                     "value": "sre-copilot-agent"
                   },
                   {
-                    "id": "2",
                     "key": {
                       "key": "name",
-                      "dataType": "string",
-                      "type": "tag",
-                      "isColumn": true
+                      "type": "tag"
                     },
                     "op": "=",
                     "value": "execute_tool"
@@ -137,14 +164,39 @@
                 ],
                 "op": "AND"
               },
-              "groupBy": [],
+              "groupBy": [
+                {
+                  "key": "tool.name",
+                  "type": "tag"
+                }
+              ],
               "expression": "A",
               "disabled": false,
-              "legend": "Actions Executed"
+              "legend": "Tool: {{tool.name}}"
             }
           ],
-          "queryFormulas": []
+          "queryFormulas": [],
+          "queryTraceOperator": []
         }
+      }
+    },
+    {
+      "id": "panel-3",
+      "title": "SRE Agent Decision Trace Audit",
+      "description": "Live audit trail of SRE copilot diagnostic workflows, tool executions, and span durations.",
+      "panelTypes": "table",
+      "opacity": "1",
+      "timePreferance": "GLOBAL_TIME",
+      "query": {
+        "queryType": "clickhouse_sql",
+        "clickhouse_sql": [
+          {
+            "disabled": false,
+            "legend": "Spans",
+            "name": "A",
+            "query": "SELECT timestamp, name AS span_name, duration_nano / 1000000 AS duration_ms, attributes_string['tool.name'] AS executed_tool, attributes_string['incident.context'] AS incident_context FROM signoz_traces.signoz_index_v3 WHERE serviceName = 'sre-copilot-agent' ORDER BY timestamp DESC LIMIT 50"
+          }
+        ]
       }
     }
   ]

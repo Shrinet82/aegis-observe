@@ -1,20 +1,20 @@
 import os
 import sys
 import json
-import subprocess
 import logging
-import requests
-import asyncio
-from mcp.client.streamable_http import streamablehttp_client
-from mcp.client.session import ClientSession
-from openai import AzureOpenAI
 import time
+from openai import AzureOpenAI
 
 from opentelemetry import trace
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import BatchSpanProcessor
 from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
 from opentelemetry.sdk.resources import Resource
+
+from mcp_client import run_mcp_checks
+from k8s_tools import run_k8s_checks, get_cooldown, set_cooldown
+from gitops import execute_tool
+import slack_notifier
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger("sre-copilot")
@@ -109,118 +109,9 @@ tools_schema = [
     }
 ]
 
-# Core Execution Logic
-@tracer.start_as_current_span("execute_tool")
-def execute_tool(name, args, reasoning="", incident_type="Unknown Incident"):
-    span = trace.get_current_span()
-    span.set_attribute("tool.name", name)
-    span.set_attribute("tool.args", json.dumps(args))
-    logger.info(f"Invoking target tool: {name} with arguments: {args}")
-    try:
-        github_token = os.getenv("GITHUB_TOKEN")
-        repo_url = os.getenv("GITHUB_REPO_URL")
-        if not github_token or not repo_url:
-            raise Exception("Missing GITHUB_TOKEN or GITHUB_REPO_URL environment variables")
-            
-        subprocess.run("rm -rf /tmp/repo", shell=True)
-        clone_cmd = f"git clone https://oauth2:{github_token}@{repo_url} /tmp/repo"
-        res = subprocess.run(clone_cmd, shell=True, capture_output=True, text=True)
-        if res.returncode != 0:
-            raise Exception(f"Git clone failed: {res.stderr}")
-            
-        subprocess.run('git config --global user.email "sre-copilot@example.com"', shell=True, cwd="/tmp/repo")
-        subprocess.run('git config --global user.name "SRE Copilot"', shell=True, cwd="/tmp/repo")
-        
-        target_file = "/tmp/repo/manifests/mlops/deployment.yaml"
-        commit_msg = ""
-        is_tier_1 = name in ["scale_deployment", "patch_pod_limits"]
-        is_tier_2 = name in ["rollback_deployment", "trigger_retraining", "cordon_and_drain"]
-        
-        if is_tier_2:
-            import time
-            branch_name = f"sre-copilot-remediation-{int(time.time())}"
-            subprocess.run(f"git checkout -b {branch_name}", shell=True, cwd="/tmp/repo", check=True)
-            
-        if name == "scale_deployment":
-            import re
-            with open(target_file, 'r') as f:
-                yaml_content = f.read()
-            yaml_content = re.sub(r"replicas:\s*\d+", f"replicas: {args['replicas']}", yaml_content)
-            with open(target_file, 'w') as f:
-                f.write(yaml_content)
-            commit_msg = f"[Auto-Remediation] Traffic Spike"
-            
-        elif name == "patch_pod_limits":
-            import re
-            with open(target_file, 'r') as f:
-                yaml_content = f.read()
-            yaml_content = re.sub(r"cpu:\s*\"?[0-9]+m?\"?", f"cpu: \"{args['cpu']}\"", yaml_content)
-            yaml_content = re.sub(r"memory:\s*\"?[0-9]+[A-Za-z]+\"?", f"memory: {args['memory']}", yaml_content)
-            with open(target_file, 'w') as f:
-                f.write(yaml_content)
-            commit_msg = f"[Auto-Remediation] Resource Starvation"
-            
-        elif name == "rollback_deployment":
-            subprocess.run('git revert --no-commit HEAD', shell=True, cwd="/tmp/repo", check=True)
-            commit_msg = f"[Tier 2 Proposal] Rollback Bad Release"
-            
-        elif name == "trigger_retraining":
-            os.makedirs("/tmp/repo/audit", exist_ok=True)
-            with open("/tmp/repo/audit/PROPOSAL.md", "w") as f:
-                f.write(f"# ML Pipeline Retraining Proposal\n\nTarget Webhook: {args['pipeline_webhook_url']}\n")
-            commit_msg = f"[Tier 2 Proposal] Trigger Retraining Pipeline"
-            
-        elif name == "cordon_and_drain":
-            os.makedirs("/tmp/repo/audit", exist_ok=True)
-            with open("/tmp/repo/audit/PROPOSAL.md", "w") as f:
-                f.write(f"# Cordon and Drain Proposal\n\nTarget Node: {args['node_name']}\n")
-            commit_msg = f"[Tier 2 Proposal] Cordon and Drain Node"
-        
-        subprocess.run('git add .', shell=True, cwd="/tmp/repo", check=True)
-        subprocess.run(f'git commit -m "{commit_msg}"', shell=True, cwd="/tmp/repo", check=True)
-        
-        if is_tier_1:
-            subprocess.run('git push origin main', shell=True, cwd="/tmp/repo", check=True)
-            logger.info("[TIER 1] Auto-remediation pushed to main.")
-            return f"GitOps Success: {commit_msg}"
-            
-        elif is_tier_2:
-            subprocess.run(f'git push origin {branch_name}', shell=True, cwd="/tmp/repo", check=True)
-            
-            import urllib.parse
-            # Repo URL format: github.com/owner/repo.git
-            parsed = urllib.parse.urlparse("https://" + repo_url)
-            path_parts = parsed.path.strip('/').replace('.git', '').split('/')
-            owner = path_parts[0]
-            repo = path_parts[1]
-            
-            api_url = f"https://api.github.com/repos/{owner}/{repo}/pulls"
-            headers = {
-                "Authorization": f"token {github_token}",
-                "Accept": "application/vnd.github.v3+json"
-            }
-            pr_data = {
-                "title": f"[URGENT] AI Remediation Proposal: {incident_type}",
-                "head": branch_name,
-                "base": "main",
-                "body": f"### AI Remediation Proposal\n\n**Incident:** {incident_type}\n**Proposed Action:** {name}\n**Arguments:** {json.dumps(args, indent=2)}\n\n### LLM Reasoning\n\n{reasoning}"
-            }
-            
-            pr_res = requests.post(api_url, headers=headers, json=pr_data)
-            if pr_res.status_code == 201:
-                pr_url = pr_res.json().get("html_url")
-                logger.info(f"[TIER 2] Destructive action proposed. PR opened for Human Review: {pr_url}")
-                return f"PR created successfully: {pr_url}"
-            else:
-                logger.error(f"Failed to create PR: {pr_res.text}")
-                return f"Branch pushed, but PR creation failed: {pr_res.text}"
-                
-    except subprocess.CalledProcessError as e:
-        logger.error(f"Execution failed for tool {name}: {e.stderr}")
-        return f"Execution error: {e.stderr}"
-    except Exception as e:
-        logger.error(f"Unexpected error in tool execution: {str(e)}")
-        return f"Error: {str(e)}"
+COOLDOWN_SECONDS = 300
+ACTIVE_REMEDIATIONS = {}  # {incident_type: {"time": timestamp, "tools": ["..."]}}
+PENDING_INCIDENTS = set()  # Locks incidents currently sitting in Slack awaiting human authorization
 
 @tracer.start_as_current_span("run_agent_workflow")
 def run_agent_workflow(telemetry_context: str):
@@ -255,113 +146,146 @@ def run_agent_workflow(telemetry_context: str):
     if response_message.content and "HALT_INSUFFICIENT_TOOLS" in response_message.content:
         logger.warning("🚨 [PHASE 2 GUARDRAIL BREACHED] - Agent lacks the necessary tools to safely cure this incident.")
         logger.warning(f"Reasoning breakdown from LLM: {response_message.content}")
-        # Placeholder for Slack/PagerDuty notification webhook hook here
-        print(f"SLACK_ALERT: Operational failure detected. Requiring Manual Intervention. Details: {response_message.content}")
-        return
+        slack_notifier.send_slack_message(f"🚨 *Operational failure detected!* Requiring Manual Intervention.\n*Details:* {response_message.content}")
+        return []
         
+    executed_tools = []
     if response_message.tool_calls:
         for tool_call in response_message.tool_calls:
             name = tool_call.function.name
             args = json.loads(tool_call.function.arguments)
-            reasoning = response_message.content or "No explicit reasoning provided by LLM."
+            reasoning = response_message.content or "PromQL telemetry indicates resource starvation/latency threshold breached. AI recommends applying manifest patch."
+            
             try:
-                incident_type = json.loads(telemetry_context).get("incident", "Unknown Incident")
-            except:
+                incident_dict = json.loads(telemetry_context)
+                incident_type = incident_dict.get("incident", "Unknown Incident")
+                deployment = incident_dict.get("deployment", "fraud-detection-api")
+                namespace = incident_dict.get("namespace", "oppe2-app")
+                trace_id = incident_dict.get("trace_id", "N/A")
+            except Exception:
                 incident_type = "Unknown Incident"
-            result = execute_tool(name, args, reasoning, incident_type)
-            logger.info(f"Action Result: {result}")
+                deployment = "fraud-detection-api"
+                namespace = "oppe2-app"
+                trace_id = "N/A"
+
+            incident_key = f"{deployment}:{incident_type}"
+
+            # Build and send interactive Human-in-the-Loop Slack Card with 3 approval buttons
+            interactive_blocks = slack_notifier.build_interactive_proposal_blocks(
+                incident_type=incident_type,
+                target_pod=deployment,
+                namespace=namespace,
+                reasoning=reasoning,
+                tool_name=name,
+                tool_args=args,
+                trace_id=trace_id
+            )
+            
+            slack_notifier.send_slack_message(
+                message=f"🚨 [CRITICAL ALERT] {incident_type} - Action Required",
+                blocks=interactive_blocks
+            )
+            logger.info(f"Dispatched interactive Slack approval card for tool proposal: {name} with args {args}")
+
+            # If Socket Mode is active, human approval via Slack buttons executes the action.
+            # Set circuit-breaker lock so 10s diagnostic loop skips re-evaluating this incident.
+            if os.getenv("SLACK_APP_TOKEN"):
+                PENDING_INCIDENTS.add(incident_key)
+                logger.info(f"🔒 [CIRCUIT BREAKER] Incident locked as '{incident_key}'. Execution deferred until human approval in Slack.")
+            else:
+                result = execute_tool(name, args, reasoning, incident_type)
+                executed_tools.append(name)
+                logger.info(f"Action Result (Direct Execution): {result}")
     else:
         logger.info(f"Telemetry evaluated. No remediation action required or safe state reached: {response_message.content}")
 
+    return executed_tools
 
-@tracer.start_as_current_span("query_signoz_mcp")
-def query_signoz_mcp() -> str:
+
+@tracer.start_as_current_span("diagnostic_engine")
+def run_diagnostic_engine() -> str:
+    """
+    Autonomous Diagnostic Engine: runs MCP checks first, then K8s API checks.
+    Returns the first detected incident or OK.
+    """
     span = trace.get_current_span()
-    logger.info("Polling live telemetry for fraud-detection-api anomalies via SigNoz MCP...")
-    
     mcp_endpoint = os.getenv("SIGNOZ_MCP_ENDPOINT", "http://signoz-mcp.oppe2-app.svc.cluster.local:8000/mcp")
-    
-    async def _query_mcp():
-        try:
-            # Connect to the SigNoz MCP server using Streamable HTTP
-            async with streamablehttp_client(mcp_endpoint) as (read_stream, write_stream, get_sid):
-                async with ClientSession(read_stream, write_stream) as session:
-                    await session.initialize()
-                    
-                    # Search logs for OOMKilled via MCP server's exposed tool
-                    args = {
-                        "searchText": "OOMKilled",
-                        "filter": "kubernetes.labels.app = 'fraud-detection-api'",
-                        "timeRange": "5m"
-                    }
-                    result = await session.call_tool("signoz_search_logs", args)
-                    
-                    # Parse the MCP tool execution result
-                    if hasattr(result, "content") and result.content:
-                        content_str = result.content[0].text
-                        data = json.loads(content_str)
-                        if isinstance(data, list) and len(data) > 0:
-                            # Usually log results return a list of matching logs
-                            span.set_attribute("incident.detected", True)
-                            span.set_attribute("incident.type", "OOMKilled")
-                            logger.warning("🚨 SigNoz MCP Alert: OOMKilled detected via MCP telemetry query!")
-                            return json.dumps({
-                                "incident": "OOMKilled",
-                                "deployment": "fraud-detection-api",
-                                "namespace": "oppe2-app",
-                                "error_rate": "100%",
-                                "description": "Pod terminated due to memory starvation (OOMKilled). Critical resource exhaustion detected via MCP."
-                            })
-                    
-                    span.set_attribute("incident.detected", False)
-                    return json.dumps({"status": "OK"})
-        except Exception as e:
-            logger.warning(f"SigNoz MCP unreachable or query failed, falling back to k8s api... ({e})")
-            span.set_attribute("mcp.fallback", True)
-            
-            # Fallback to direct K8s API query if MCP is not responding
-            cmd = "kubectl get pods -l app=fraud-detection-api -n oppe2-app -o json"
-            try:
-                res = subprocess.run(cmd, shell=True, capture_output=True, text=True, check=True)
-                pods = json.loads(res.stdout).get("items", [])
-                for pod in pods:
-                    statuses = pod.get("status", {}).get("containerStatuses", [])
-                    for status in statuses:
-                        state = status.get("state", {})
-                        last_state = status.get("lastState", {})
-                        
-                        is_oom = False
-                        if state.get("terminated", {}).get("reason") == "OOMKilled":
-                            is_oom = True
-                        if last_state.get("terminated", {}).get("reason") == "OOMKilled":
-                            is_oom = True
-                        
-                        if is_oom:
-                            span.set_attribute("incident.detected", True)
-                            span.set_attribute("incident.type", "OOMKilled")
-                            logger.warning("🚨 Alert: OOMKilled detected in live telemetry!")
-                            return json.dumps({
-                                "incident": "OOMKilled",
-                                "deployment": "fraud-detection-api",
-                                "namespace": "oppe2-app",
-                                "error_rate": "100%",
-                                "description": "Pod terminated due to memory starvation (OOMKilled). Critical resource exhaustion detected."
-                            })
-            except Exception as e2:
-                span.record_exception(e2)
-                logger.error(f"Error polling telemetry: {e2}")
-                
-            return json.dumps({"status": "OK"})
-            
-    return asyncio.run(asyncio.wait_for(_query_mcp(), timeout=10.0))
+
+    # --- Phase A: MCP-based telemetry checks ---
+    logger.info("Diagnostic Engine: Running MCP-based health checks...")
+    try:
+        mcp_result = run_mcp_checks(mcp_endpoint)
+        if '"status": "OK"' not in mcp_result:
+            span.set_attribute("detection.source", "MCP")
+            return mcp_result
+    except Exception as e:
+        logger.warning(f"MCP checks failed, falling back to K8s API... ({e})")
+        span.set_attribute("mcp.fallback", True)
+
+    # --- Phase B: Kubernetes API health checks (always run as augmentation) ---
+    logger.info("Diagnostic Engine: Running K8s API health checks...")
+    k8s_result = run_k8s_checks()
+    if '"status": "OK"' not in k8s_result:
+        span.set_attribute("detection.source", "K8sAPI")
+        return k8s_result
+
+    return json.dumps({"status": "OK"})
+
 
 def main_loop():
-    logger.info("Starting Intelligent Remediation Loop...")
+    logger.info("Starting Autonomous Diagnostic Engine...")
+    # Initialize Slack Socket Mode for interactive Human-in-the-Loop buttons
+    slack_notifier.init_socket_mode()
+
     while True:
         try:
-            mcp_data = query_signoz_mcp()
-            if '"status": "OK"' not in mcp_data:
-                run_agent_workflow(mcp_data)
+            incident_data = run_diagnostic_engine()
+            current_time = time.time()
+            
+            if '"status": "OK"' in incident_data:
+                # Post-Remediation Verification check
+                resolved_incidents = []
+                for inc_type, state in ACTIVE_REMEDIATIONS.items():
+                    blocks = slack_notifier.build_success_blocks(inc_type, state['tools'])
+                    slack_notifier.send_slack_message(message=f"✅ Remediation Successful: {inc_type}", blocks=blocks)
+                    resolved_incidents.append(inc_type)
+                for inc_type in resolved_incidents:
+                    del ACTIVE_REMEDIATIONS[inc_type]
+            else:
+                try:
+                    incident_dict = json.loads(incident_data)
+                    incident_type = incident_dict.get("incident", "Unknown")
+                    deployment = incident_dict.get("deployment", "fraud-detection-api")
+                except Exception:
+                    incident_dict = {"incident": "Unknown"}
+                    incident_type = "Unknown"
+                    deployment = "fraud-detection-api"
+                
+                incident_key = f"{deployment}:{incident_type}"
+
+                # Circuit Breaker: If an alert is sitting in Slack awaiting human authorization, skip loop execution!
+                if incident_key in PENDING_INCIDENTS:
+                    logger.info(f"⏸️ [CIRCUIT BREAKER] Incident '{incident_key}' is awaiting human decision in Slack. Skipping loop iteration.")
+                    time.sleep(10)
+                    continue
+
+                # Check for failed remediations (persists for > 2 mins since remediation)
+                if incident_type in ACTIVE_REMEDIATIONS:
+                    time_since = current_time - ACTIVE_REMEDIATIONS[incident_type]["time"]
+                    if time_since > 120:
+                        slack_notifier.send_slack_message(f"❌ *Remediation Failed!* Incident `{incident_type}` persists after 2 minutes despite tools: {ACTIVE_REMEDIATIONS[incident_type]['tools']}. Manual intervention required!")
+                        # Push timestamp far into future to prevent webhook spam
+                        ACTIVE_REMEDIATIONS[incident_type]["time"] = current_time + 86400  
+                
+                last_time = get_cooldown(incident_type)
+                
+                if current_time - last_time < COOLDOWN_SECONDS:
+                    logger.info(f"Cooldown active for '{incident_type}'. Skipping remediation.")
+                else:
+                    executed_tools = run_agent_workflow(incident_data)
+                    if executed_tools:
+                        ACTIVE_REMEDIATIONS[incident_type] = {"time": current_time, "tools": executed_tools}
+                    set_cooldown(incident_type, current_time)
         except Exception as e:
             logger.error(f"Error in SRE Copilot Loop: {e}")
 

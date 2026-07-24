@@ -1,6 +1,7 @@
-apiVersion: v1
-data:
-  requirements.txt: |
+"apiVersion": |-
+  v1
+"data":
+  "requirements.txt": |
     azure-ai-projects
     azure-identity
     azure-core
@@ -10,216 +11,340 @@ data:
     openai
     mcp
     requests
-  agent.py: "import os\nimport sys\nimport json\nimport subprocess\nimport logging\nimport
-    requests\nimport asyncio\nfrom mcp.client.streamable_http import streamablehttp_client\nfrom
-    mcp.client.session import ClientSession\nfrom openai import AzureOpenAI\nimport
-    time\n\nfrom opentelemetry import trace\nfrom opentelemetry.sdk.trace import TracerProvider\nfrom
-    opentelemetry.sdk.trace.export import BatchSpanProcessor\nfrom opentelemetry.exporter.otlp.proto.grpc.trace_exporter
-    import OTLPSpanExporter\nfrom opentelemetry.sdk.resources import Resource\n\nlogging.basicConfig(level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')\nlogger = logging.getLogger(\"sre-copilot\")\n\n#
-    Setup OTel Tracing\nresource = Resource.create({\"service.name\": \"sre-copilot-agent\"})\ntrace.set_tracer_provider(TracerProvider(resource=resource))\ntracer
-    = trace.get_tracer(\"sre-copilot.agent\")\nspan_processor = BatchSpanProcessor(OTLPSpanExporter(\n
-    \   endpoint=os.environ.get(\"OTEL_EXPORTER_OTLP_ENDPOINT\", \"http://signoz-ingester.signoz.svc.cluster.local:4317\"),\n
-    \   insecure=True\n))\ntrace.get_tracer_provider().add_span_processor(span_processor)\n\n#
-    Tool Definition Registry\ntools_schema = [\n    {\n        \"type\": \"function\",\n
-    \       \"function\": {\n            \"name\": \"scale_deployment\",\n            \"description\":
-    \"Scales a deployment's replica count up or down horizontally to handle traffic
-    spikes.\",\n            \"parameters\": {\n                \"type\": \"object\",\n
-    \               \"properties\": {\n                    \"name\": {\"type\": \"string\"},\n
-    \                   \"namespace\": {\"type\": \"string\"},\n                    \"replicas\":
-    {\"type\": \"integer\"}\n                },\n                \"required\": [\"name\",
-    \"namespace\", \"replicas\"]\n            }\n        }\n    },\n    {\n        \"type\":
-    \"function\",\n        \"function\": {\n            \"name\": \"patch_pod_limits\",\n
-    \           \"description\": \"Increases CPU and memory resource ceilings when
-    a pod encounters resource starvation or OOMKilled events.\",\n            \"parameters\":
-    {\n                \"type\": \"object\",\n                \"properties\": {\n
-    \                   \"name\": {\"type\": \"string\"},\n                    \"namespace\":
-    {\"type\": \"string\"},\n                    \"cpu\": {\"type\": \"string\", \"description\":
-    \"e.g., '1000m'\"},\n                    \"memory\": {\"type\": \"string\", \"description\":
-    \"e.g., '1Gi'\"}\n                },\n                \"required\": [\"name\",
-    \"namespace\", \"cpu\", \"memory\"]\n            }\n        }\n    },\n    {\n
-    \       \"type\": \"function\",\n        \"function\": {\n            \"name\":
-    \"rollback_deployment\",\n            \"description\": \"Rolls back a deployment
-    to its previous stable revision if a bad release or corrupted image tag breaks
-    the pod status.\",\n            \"parameters\": {\n                \"type\": \"object\",\n
-    \               \"properties\": {\n                    \"name\": {\"type\": \"string\"},\n
-    \                   \"namespace\": {\"type\": \"string\"}\n                },\n
-    \               \"required\": [\"name\", \"namespace\"]\n            }\n        }\n
-    \   },\n    {\n        \"type\": \"function\",\n        \"function\": {\n            \"name\":
-    \"trigger_retraining\",\n            \"description\": \"Kicks off an automated
-    MLflow retraining pipeline when statistical model drift is detected.\",\n            \"parameters\":
-    {\n                \"type\": \"object\",\n                \"properties\": {\n
-    \                   \"pipeline_webhook_url\": {\"type\": \"string\"}\n                },\n
-    \               \"required\": [\"pipeline_webhook_url\"]\n            }\n        }\n
-    \   },\n    {\n        \"type\": \"function\",\n        \"function\": {\n            \"name\":
-    \"cordon_and_drain\",\n            \"description\": \"Cordon a hardware node and
-    gracefully evict pods when disk or memory pressure threatens node stability.\",\n
-    \           \"parameters\": {\n                \"type\": \"object\",\n                \"properties\":
-    {\n                    \"node_name\": {\"type\": \"string\"}\n                },\n
-    \               \"required\": [\"node_name\"]\n            }\n        }\n    }\n]\n\n#
-    Core Execution Logic\n@tracer.start_as_current_span(\"execute_tool\")\ndef execute_tool(name,
-    args, reasoning=\"\", incident_type=\"Unknown Incident\"):\n    span = trace.get_current_span()\n
-    \   span.set_attribute(\"tool.name\", name)\n    span.set_attribute(\"tool.args\",
-    json.dumps(args))\n    logger.info(f\"Invoking target tool: {name} with arguments:
-    {args}\")\n    try:\n        github_token = os.getenv(\"GITHUB_TOKEN\")\n        repo_url
-    = os.getenv(\"GITHUB_REPO_URL\")\n        if not github_token or not repo_url:\n
-    \           raise Exception(\"Missing GITHUB_TOKEN or GITHUB_REPO_URL environment
-    variables\")\n            \n        subprocess.run(\"rm -rf /tmp/repo\", shell=True)\n
-    \       clone_cmd = f\"git clone https://oauth2:{github_token}@{repo_url} /tmp/repo\"\n
-    \       res = subprocess.run(clone_cmd, shell=True, capture_output=True, text=True)\n
-    \       if res.returncode != 0:\n            raise Exception(f\"Git clone failed:
-    {res.stderr}\")\n            \n        subprocess.run('git config --global user.email
-    \"sre-copilot@example.com\"', shell=True, cwd=\"/tmp/repo\")\n        subprocess.run('git
-    config --global user.name \"SRE Copilot\"', shell=True, cwd=\"/tmp/repo\")\n        \n
-    \       target_file = \"/tmp/repo/manifests/mlops/deployment.yaml\"\n        commit_msg
-    = \"\"\n        is_tier_1 = name in [\"scale_deployment\", \"patch_pod_limits\"]\n
-    \       is_tier_2 = name in [\"rollback_deployment\", \"trigger_retraining\",
-    \"cordon_and_drain\"]\n        \n        if is_tier_2:\n            import time\n
-    \           branch_name = f\"sre-copilot-remediation-{int(time.time())}\"\n            subprocess.run(f\"git
-    checkout -b {branch_name}\", shell=True, cwd=\"/tmp/repo\", check=True)\n            \n
-    \       if name == \"scale_deployment\":\n            import re\n            with
-    open(target_file, 'r') as f:\n                yaml_content = f.read()\n            yaml_content
-    = re.sub(r\"replicas:\\s*\\d+\", f\"replicas: {args['replicas']}\", yaml_content)\n
-    \           with open(target_file, 'w') as f:\n                f.write(yaml_content)\n
-    \           commit_msg = f\"[Auto-Remediation] Traffic Spike\"\n            \n
-    \       elif name == \"patch_pod_limits\":\n            import re\n            with
-    open(target_file, 'r') as f:\n                yaml_content = f.read()\n            yaml_content
-    = re.sub(r\"cpu:\\s*\\\"?[0-9]+m?\\\"?\", f\"cpu: \\\"{args['cpu']}\\\"\", yaml_content)\n
-    \           yaml_content = re.sub(r\"memory:\\s*\\\"?[0-9]+[A-Za-z]+\\\"?\", f\"memory:
-    {args['memory']}\", yaml_content)\n            with open(target_file, 'w') as
-    f:\n                f.write(yaml_content)\n            commit_msg = f\"[Auto-Remediation]
-    Resource Starvation\"\n            \n        elif name == \"rollback_deployment\":\n
-    \           subprocess.run('git revert --no-commit HEAD', shell=True, cwd=\"/tmp/repo\",
-    check=True)\n            commit_msg = f\"[Tier 2 Proposal] Rollback Bad Release\"\n
-    \           \n        elif name == \"trigger_retraining\":\n            os.makedirs(\"/tmp/repo/audit\",
-    exist_ok=True)\n            with open(\"/tmp/repo/audit/PROPOSAL.md\", \"w\")
-    as f:\n                f.write(f\"# ML Pipeline Retraining Proposal\\n\\nTarget
-    Webhook: {args['pipeline_webhook_url']}\\n\")\n            commit_msg = f\"[Tier
-    2 Proposal] Trigger Retraining Pipeline\"\n            \n        elif name ==
-    \"cordon_and_drain\":\n            os.makedirs(\"/tmp/repo/audit\", exist_ok=True)\n
-    \           with open(\"/tmp/repo/audit/PROPOSAL.md\", \"w\") as f:\n                f.write(f\"#
-    Cordon and Drain Proposal\\n\\nTarget Node: {args['node_name']}\\n\")\n            commit_msg
-    = f\"[Tier 2 Proposal] Cordon and Drain Node\"\n        \n        subprocess.run('git
-    add .', shell=True, cwd=\"/tmp/repo\", check=True)\n        subprocess.run(f'git
-    commit -m \"{commit_msg}\"', shell=True, cwd=\"/tmp/repo\", check=True)\n        \n
-    \       if is_tier_1:\n            subprocess.run('git push origin main', shell=True,
-    cwd=\"/tmp/repo\", check=True)\n            logger.info(\"[TIER 1] Auto-remediation
-    pushed to main.\")\n            return f\"GitOps Success: {commit_msg}\"\n            \n
-    \       elif is_tier_2:\n            subprocess.run(f'git push origin {branch_name}',
-    shell=True, cwd=\"/tmp/repo\", check=True)\n            \n            import urllib.parse\n
-    \           # Repo URL format: github.com/owner/repo.git\n            parsed =
-    urllib.parse.urlparse(\"https://\" + repo_url)\n            path_parts = parsed.path.strip('/').replace('.git',
-    '').split('/')\n            owner = path_parts[0]\n            repo = path_parts[1]\n
-    \           \n            api_url = f\"https://api.github.com/repos/{owner}/{repo}/pulls\"\n
-    \           headers = {\n                \"Authorization\": f\"token {github_token}\",\n
-    \               \"Accept\": \"application/vnd.github.v3+json\"\n            }\n
-    \           pr_data = {\n                \"title\": f\"[URGENT] AI Remediation
-    Proposal: {incident_type}\",\n                \"head\": branch_name,\n                \"base\":
-    \"main\",\n                \"body\": f\"### AI Remediation Proposal\\n\\n**Incident:**
-    {incident_type}\\n**Proposed Action:** {name}\\n**Arguments:** {json.dumps(args,
-    indent=2)}\\n\\n### LLM Reasoning\\n\\n{reasoning}\"\n            }\n            \n
-    \           pr_res = requests.post(api_url, headers=headers, json=pr_data)\n            if
-    pr_res.status_code == 201:\n                pr_url = pr_res.json().get(\"html_url\")\n
-    \               logger.info(f\"[TIER 2] Destructive action proposed. PR opened
-    for Human Review: {pr_url}\")\n                return f\"PR created successfully:
-    {pr_url}\"\n            else:\n                logger.error(f\"Failed to create
-    PR: {pr_res.text}\")\n                return f\"Branch pushed, but PR creation
-    failed: {pr_res.text}\"\n                \n    except subprocess.CalledProcessError
-    as e:\n        logger.error(f\"Execution failed for tool {name}: {e.stderr}\")\n
-    \       return f\"Execution error: {e.stderr}\"\n    except Exception as e:\n
-    \       logger.error(f\"Unexpected error in tool execution: {str(e)}\")\n        return
-    f\"Error: {str(e)}\"\n\n@tracer.start_as_current_span(\"run_agent_workflow\")\ndef
-    run_agent_workflow(telemetry_context: str):\n    span = trace.get_current_span()\n
-    \   span.set_attribute(\"incident.context\", telemetry_context)\n    logger.info(\"Starting
-    Intelligent Diagnostic & Remediation Loop...\")\n    \n    client = AzureOpenAI(\n
-    \       api_key=os.getenv(\"AZURE_OPENAI_API_KEY\"),\n        api_version=\"2024-05-01-preview\",\n
-    \       azure_endpoint=os.getenv(\"AZURE_OPENAI_ENDPOINT\")\n    )\n    \n    system_prompt
-    = os.getenv(\"SYSTEM_PROMPT\", \"Default SRE behavior.\")\n    \n    response
-    = client.chat.completions.create(\n        model=\"gpt-5-mini\",\n        messages=[\n
-    \           {\"role\": \"system\", \"content\": system_prompt},\n            {\"role\":
-    \"user\", \"content\": f\"Analyze this live SigNoz incident data: {telemetry_context}\"}\n
-    \       ],\n        tools=tools_schema,\n        tool_choice=\"auto\"\n    )\n
-    \   \n    span.set_attribute(\"gen_ai.usage.prompt_tokens\", response.usage.prompt_tokens
-    if response.usage else 0)\n    span.set_attribute(\"gen_ai.usage.completion_tokens\",
-    response.usage.completion_tokens if response.usage else 0)\n    \n    response_message
-    = response.choices[0].message\n    \n    # Check for Explicit Phase 2 Interlock
-    Stop (HALT)\n    if response_message.content and \"HALT_INSUFFICIENT_TOOLS\" in
-    response_message.content:\n        logger.warning(\"\U0001F6A8 [PHASE 2 GUARDRAIL
-    BREACHED] - Agent lacks the necessary tools to safely cure this incident.\")\n
-    \       logger.warning(f\"Reasoning breakdown from LLM: {response_message.content}\")\n
-    \       # Placeholder for Slack/PagerDuty notification webhook hook here\n        print(f\"SLACK_ALERT:
-    Operational failure detected. Requiring Manual Intervention. Details: {response_message.content}\")\n
-    \       return\n        \n    if response_message.tool_calls:\n        for tool_call
-    in response_message.tool_calls:\n            name = tool_call.function.name\n
-    \           args = json.loads(tool_call.function.arguments)\n            reasoning
-    = response_message.content or \"No explicit reasoning provided by LLM.\"\n            try:\n
-    \               incident_type = json.loads(telemetry_context).get(\"incident\",
-    \"Unknown Incident\")\n            except:\n                incident_type = \"Unknown
-    Incident\"\n            result = execute_tool(name, args, reasoning, incident_type)\n
-    \           logger.info(f\"Action Result: {result}\")\n    else:\n        logger.info(f\"Telemetry
-    evaluated. No remediation action required or safe state reached: {response_message.content}\")\n\n\n@tracer.start_as_current_span(\"query_signoz_mcp\")\ndef
-    query_signoz_mcp() -> str:\n    span = trace.get_current_span()\n    logger.info(\"Polling
-    live telemetry for fraud-detection-api anomalies via SigNoz MCP...\")\n    \n
-    \   mcp_endpoint = os.getenv(\"SIGNOZ_MCP_ENDPOINT\", \"http://signoz-mcp.oppe2-app.svc.cluster.local:8000/mcp\")\n
-    \   \n    async def _query_mcp():\n        try:\n            # Connect to the
-    SigNoz MCP server using Streamable HTTP\n            async with streamablehttp_client(mcp_endpoint)
-    as (read_stream, write_stream, get_sid):\n                async with ClientSession(read_stream,
-    write_stream) as session:\n                    await session.initialize()\n                    \n
-    \                   # Search logs for OOMKilled via MCP server's exposed tool\n
-    \                   args = {\n                        \"searchText\": \"OOMKilled\",\n
-    \                       \"filter\": \"k8s.deployment.name = 'fraud-detection-api'\",\n
-    \                       \"timeRange\": \"5m\"\n                    }\n                    result
-    = await session.call_tool(\"signoz_search_logs\", args)\n                    \n
-    \                   # Parse the MCP tool execution result\n                    if
-    hasattr(result, \"content\") and result.content:\n                        content_str
-    = result.content[0].text\n                        data = json.loads(content_str)\n
-    \                       if isinstance(data, list) and len(data) > 0:\n                            #
-    Usually log results return a list of matching logs\n                            span.set_attribute(\"incident.detected\",
-    True)\n                            span.set_attribute(\"incident.type\", \"OOMKilled\")\n
-    \                           logger.warning(\"\U0001F6A8 SigNoz MCP Alert: OOMKilled
-    detected via MCP telemetry query!\")\n                            return json.dumps({\n
-    \                               \"incident\": \"OOMKilled\",\n                                \"deployment\":
-    \"fraud-detection-api\",\n                                \"namespace\": \"oppe2-app\",\n
-    \                               \"error_rate\": \"100%\",\n                                \"description\":
-    \"Pod terminated due to memory starvation (OOMKilled). Critical resource exhaustion
-    detected via MCP.\"\n                            })\n                    \n                    span.set_attribute(\"incident.detected\",
-    False)\n                    return json.dumps({\"status\": \"OK\"})\n        except
-    Exception as e:\n            logger.warning(f\"SigNoz MCP unreachable or query
-    failed, falling back to k8s api... ({e})\")\n            span.set_attribute(\"mcp.fallback\",
-    True)\n            \n            # Fallback to direct K8s API query if MCP is
-    not responding\n            cmd = \"kubectl get pods -l app=fraud-detection-api
-    -n oppe2-app -o json\"\n            try:\n                res = subprocess.run(cmd,
-    shell=True, capture_output=True, text=True, check=True)\n                pods
-    = json.loads(res.stdout).get(\"items\", [])\n                for pod in pods:\n
-    \                   statuses = pod.get(\"status\", {}).get(\"containerStatuses\",
-    [])\n                    for status in statuses:\n                        state
-    = status.get(\"state\", {})\n                        last_state = status.get(\"lastState\",
-    {})\n                        \n                        is_oom = False\n                        if
-    state.get(\"terminated\", {}).get(\"reason\") == \"OOMKilled\":\n                            is_oom
-    = True\n                        if last_state.get(\"terminated\", {}).get(\"reason\")
-    == \"OOMKilled\":\n                            is_oom = True\n                        \n
-    \                       if is_oom:\n                            span.set_attribute(\"incident.detected\",
-    True)\n                            span.set_attribute(\"incident.type\", \"OOMKilled\")\n
-    \                           logger.warning(\"\U0001F6A8 Alert: OOMKilled detected
-    in live telemetry!\")\n                            return json.dumps({\n                                \"incident\":
-    \"OOMKilled\",\n                                \"deployment\": \"fraud-detection-api\",\n
-    \                               \"namespace\": \"oppe2-app\",\n                                \"error_rate\":
-    \"100%\",\n                                \"description\": \"Pod terminated due
-    to memory starvation (OOMKilled). Critical resource exhaustion detected.\"\n                            })\n
-    \           except Exception as e2:\n                span.record_exception(e2)\n
-    \               logger.error(f\"Error polling telemetry: {e2}\")\n                \n
-    \           return json.dumps({\"status\": \"OK\"})\n            \n    return
-    asyncio.run(asyncio.wait_for(_query_mcp(), timeout=10.0))\n\ndef main_loop():\n
-    \   logger.info(\"Starting Intelligent Remediation Loop...\")\n    while True:\n
-    \       try:\n            mcp_data = query_signoz_mcp()\n            if '\"status\":
-    \"OK\"' not in mcp_data:\n                run_agent_workflow(mcp_data)\n        except
-    Exception as e:\n            logger.error(f\"Error in SRE Copilot Loop: {e}\")\n\n
-    \       logger.info(\"Sleeping for 10 seconds before next check...\")\n        time.sleep(10)\n\nif
-    __name__ == \"__main__\":\n    try:\n        main_loop()\n    except KeyboardInterrupt:\n
-    \       logger.info(\"Exiting Copilot...\")\n"
-kind: ConfigMap
-metadata:
-  name: sre-copilot-code
-  namespace: oppe2-app
-  labels:
-    app: sre-copilot
+  "agent.py": "import os\nimport sys\nimport json\nimport subprocess\nimport logging\n\
+    import requests\nimport asyncio\nimport time\nimport re\nfrom mcp.client.streamable_http\
+    \ import streamablehttp_client\nfrom mcp.client.session import ClientSession\n\
+    from openai import AzureOpenAI\n\nfrom opentelemetry import trace\nfrom opentelemetry.sdk.trace\
+    \ import TracerProvider\nfrom opentelemetry.sdk.trace.export import BatchSpanProcessor\n\
+    from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter\n\
+    from opentelemetry.sdk.resources import Resource\n\nlogging.basicConfig(level=logging.INFO,\
+    \ format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')\nlogger = logging.getLogger(\"\
+    sre-copilot\")\n\n# Setup OTel Tracing\nresource = Resource.create({\"service.name\"\
+    : \"sre-copilot-agent\"})\ntrace.set_tracer_provider(TracerProvider(resource=resource))\n\
+    tracer = trace.get_tracer(\"sre-copilot.agent\")\nspan_processor = BatchSpanProcessor(OTLPSpanExporter(\n\
+    \    endpoint=os.environ.get(\"OTEL_EXPORTER_OTLP_ENDPOINT\", \"http://signoz-ingester.signoz.svc.cluster.local:4317\"\
+    ),\n    insecure=True\n))\ntrace.get_tracer_provider().add_span_processor(span_processor)\n\
+    \n# Tool Definition Registry\ntools_schema = [\n    {\n        \"type\": \"function\"\
+    ,\n        \"function\": {\n            \"name\": \"scale_deployment\",\n    \
+    \        \"description\": \"Scales a deployment's replica count up or down horizontally\
+    \ to handle traffic spikes.\",\n            \"parameters\": {\n              \
+    \  \"type\": \"object\",\n                \"properties\": {\n                \
+    \    \"name\": {\"type\": \"string\"},\n                    \"namespace\": {\"\
+    type\": \"string\"},\n                    \"replicas\": {\"type\": \"integer\"\
+    }\n                },\n                \"required\": [\"name\", \"namespace\"\
+    , \"replicas\"]\n            }\n        }\n    },\n    {\n        \"type\": \"\
+    function\",\n        \"function\": {\n            \"name\": \"patch_pod_limits\"\
+    ,\n            \"description\": \"Increases CPU and memory resource ceilings when\
+    \ a pod encounters resource starvation or OOMKilled events.\",\n            \"\
+    parameters\": {\n                \"type\": \"object\",\n                \"properties\"\
+    : {\n                    \"name\": {\"type\": \"string\"},\n                 \
+    \   \"namespace\": {\"type\": \"string\"},\n                    \"cpu\": {\"type\"\
+    : \"string\", \"description\": \"e.g., '1000m'\"},\n                    \"memory\"\
+    : {\"type\": \"string\", \"description\": \"e.g., '1Gi'\"}\n                },\n\
+    \                \"required\": [\"name\", \"namespace\", \"cpu\", \"memory\"]\n\
+    \            }\n        }\n    },\n    {\n        \"type\": \"function\",\n  \
+    \      \"function\": {\n            \"name\": \"rollback_deployment\",\n     \
+    \       \"description\": \"Rolls back a deployment to its previous stable revision\
+    \ if a bad release or corrupted image tag breaks the pod status.\",\n        \
+    \    \"parameters\": {\n                \"type\": \"object\",\n              \
+    \  \"properties\": {\n                    \"name\": {\"type\": \"string\"},\n\
+    \                    \"namespace\": {\"type\": \"string\"}\n                },\n\
+    \                \"required\": [\"name\", \"namespace\"]\n            }\n    \
+    \    }\n    },\n    {\n        \"type\": \"function\",\n        \"function\":\
+    \ {\n            \"name\": \"trigger_retraining\",\n            \"description\"\
+    : \"Kicks off an automated MLflow retraining pipeline when statistical model drift\
+    \ is detected.\",\n            \"parameters\": {\n                \"type\": \"\
+    object\",\n                \"properties\": {\n                    \"pipeline_webhook_url\"\
+    : {\"type\": \"string\"}\n                },\n                \"required\": [\"\
+    pipeline_webhook_url\"]\n            }\n        }\n    },\n    {\n        \"type\"\
+    : \"function\",\n        \"function\": {\n            \"name\": \"cordon_and_drain\"\
+    ,\n            \"description\": \"Cordon a hardware node and gracefully evict\
+    \ pods when disk or memory pressure threatens node stability.\",\n           \
+    \ \"parameters\": {\n                \"type\": \"object\",\n                \"\
+    properties\": {\n                    \"node_name\": {\"type\": \"string\"}\n \
+    \               },\n                \"required\": [\"node_name\"]\n          \
+    \  }\n        }\n    }\n]\n\n# Core Execution Logic\n@tracer.start_as_current_span(\"\
+    execute_tool\")\ndef execute_tool(name, args, reasoning=\"\", incident_type=\"\
+    Unknown Incident\"):\n    span = trace.get_current_span()\n    span.set_attribute(\"\
+    tool.name\", name)\n    span.set_attribute(\"tool.args\", json.dumps(args))\n\
+    \    logger.info(f\"Invoking target tool: {name} with arguments: {args}\")\n \
+    \   try:\n        github_token = os.getenv(\"GITHUB_TOKEN\")\n        repo_url\
+    \ = os.getenv(\"GITHUB_REPO_URL\")\n        if not github_token or not repo_url:\n\
+    \            raise Exception(\"Missing GITHUB_TOKEN or GITHUB_REPO_URL environment\
+    \ variables\")\n            \n        subprocess.run(\"rm -rf /tmp/repo\", shell=True)\n\
+    \        clone_cmd = f\"git clone https://oauth2:{github_token}@{repo_url} /tmp/repo\"\
+    \n        res = subprocess.run(clone_cmd, shell=True, capture_output=True, text=True)\n\
+    \        if res.returncode != 0:\n            raise Exception(f\"Git clone failed:\
+    \ {res.stderr}\")\n            \n        subprocess.run('git config --global user.email\
+    \ \"sre-copilot@example.com\"', shell=True, cwd=\"/tmp/repo\")\n        subprocess.run('git\
+    \ config --global user.name \"SRE Copilot\"', shell=True, cwd=\"/tmp/repo\")\n\
+    \        \n        target_file = \"/tmp/repo/manifests/mlops/deployment.yaml\"\
+    \n        commit_msg = \"\"\n        is_tier_1 = name in [\"scale_deployment\"\
+    , \"patch_pod_limits\"]\n        is_tier_2 = name in [\"rollback_deployment\"\
+    , \"trigger_retraining\", \"cordon_and_drain\"]\n        \n        if is_tier_2:\n\
+    \            branch_name = f\"sre-copilot-remediation-{int(time.time())}\"\n \
+    \           subprocess.run(f\"git checkout -b {branch_name}\", shell=True, cwd=\"\
+    /tmp/repo\", check=True)\n            \n        if name == \"scale_deployment\"\
+    :\n            with open(target_file, 'r') as f:\n                yaml_content\
+    \ = f.read()\n            yaml_content = re.sub(r\"replicas:\\s*\\d+\", f\"replicas:\
+    \ {args['replicas']}\", yaml_content)\n            with open(target_file, 'w')\
+    \ as f:\n                f.write(yaml_content)\n            commit_msg = f\"[Auto-Remediation]\
+    \ Traffic Spike\"\n            \n        elif name == \"patch_pod_limits\":\n\
+    \            with open(target_file, 'r') as f:\n                yaml_content =\
+    \ f.read()\n            yaml_content = re.sub(r\"cpu:\\s*\\\"?[0-9]+m?\\\"?\"\
+    , f\"cpu: \\\"{args['cpu']}\\\"\", yaml_content)\n            yaml_content = re.sub(r\"\
+    memory:\\s*\\\"?[0-9]+[A-Za-z]+\\\"?\", f\"memory: {args['memory']}\", yaml_content)\n\
+    \            with open(target_file, 'w') as f:\n                f.write(yaml_content)\n\
+    \            commit_msg = f\"[Auto-Remediation] Resource Starvation\"\n      \
+    \      \n        elif name == \"rollback_deployment\":\n            subprocess.run('git\
+    \ revert --no-commit HEAD', shell=True, cwd=\"/tmp/repo\", check=True)\n     \
+    \       commit_msg = f\"[Tier 2 Proposal] Rollback Bad Release\"\n           \
+    \ \n        elif name == \"trigger_retraining\":\n            os.makedirs(\"/tmp/repo/audit\"\
+    , exist_ok=True)\n            with open(\"/tmp/repo/audit/PROPOSAL.md\", \"w\"\
+    ) as f:\n                f.write(f\"# ML Pipeline Retraining Proposal\\n\\nTarget\
+    \ Webhook: {args['pipeline_webhook_url']}\\n\")\n            commit_msg = f\"\
+    [Tier 2 Proposal] Trigger Retraining Pipeline\"\n            \n        elif name\
+    \ == \"cordon_and_drain\":\n            os.makedirs(\"/tmp/repo/audit\", exist_ok=True)\n\
+    \            with open(\"/tmp/repo/audit/PROPOSAL.md\", \"w\") as f:\n       \
+    \         f.write(f\"# Cordon and Drain Proposal\\n\\nTarget Node: {args['node_name']}\\\
+    n\")\n            commit_msg = f\"[Tier 2 Proposal] Cordon and Drain Node\"\n\
+    \        \n        subprocess.run('git add .', shell=True, cwd=\"/tmp/repo\",\
+    \ check=True)\n        subprocess.run(f'git commit -m \"{commit_msg}\"', shell=True,\
+    \ cwd=\"/tmp/repo\", check=True)\n        \n        if is_tier_1:\n          \
+    \  subprocess.run('git push origin main', shell=True, cwd=\"/tmp/repo\", check=True)\n\
+    \            logger.info(\"[TIER 1] Auto-remediation pushed to main.\")\n    \
+    \        return f\"GitOps Success: {commit_msg}\"\n            \n        elif\
+    \ is_tier_2:\n            subprocess.run(f'git push origin {branch_name}', shell=True,\
+    \ cwd=\"/tmp/repo\", check=True)\n            \n            import urllib.parse\n\
+    \            parsed = urllib.parse.urlparse(\"https://\" + repo_url)\n       \
+    \     path_parts = parsed.path.strip('/').replace('.git', '').split('/')\n   \
+    \         owner = path_parts[0]\n            repo = path_parts[1]\n          \
+    \  \n            api_url = f\"https://api.github.com/repos/{owner}/{repo}/pulls\"\
+    \n            headers = {\n                \"Authorization\": f\"token {github_token}\"\
+    ,\n                \"Accept\": \"application/vnd.github.v3+json\"\n          \
+    \  }\n            pr_data = {\n                \"title\": f\"[URGENT] AI Remediation\
+    \ Proposal: {incident_type}\",\n                \"head\": branch_name,\n     \
+    \           \"base\": \"main\",\n                \"body\": f\"### AI Remediation\
+    \ Proposal\\n\\n**Incident:** {incident_type}\\n**Proposed Action:** {name}\\\
+    n**Arguments:** {json.dumps(args, indent=2)}\\n\\n### LLM Reasoning\\n\\n{reasoning}\"\
+    \n            }\n            \n            pr_res = requests.post(api_url, headers=headers,\
+    \ json=pr_data)\n            if pr_res.status_code == 201:\n                pr_url\
+    \ = pr_res.json().get(\"html_url\")\n                logger.info(f\"[TIER 2] Destructive\
+    \ action proposed. PR opened for Human Review: {pr_url}\")\n                return\
+    \ f\"PR created successfully: {pr_url}\"\n            else:\n                logger.error(f\"\
+    Failed to create PR: {pr_res.text}\")\n                return f\"Branch pushed,\
+    \ but PR creation failed: {pr_res.text}\"\n                \n    except subprocess.CalledProcessError\
+    \ as e:\n        logger.error(f\"Execution failed for tool {name}: {e.stderr}\"\
+    )\n        return f\"Execution error: {e.stderr}\"\n    except Exception as e:\n\
+    \        logger.error(f\"Unexpected error in tool execution: {str(e)}\")\n   \
+    \     return f\"Error: {str(e)}\"\n\n@tracer.start_as_current_span(\"run_agent_workflow\"\
+    )\ndef run_agent_workflow(telemetry_context: str):\n    span = trace.get_current_span()\n\
+    \    span.set_attribute(\"incident.context\", telemetry_context)\n    logger.info(\"\
+    Starting Intelligent Diagnostic & Remediation Loop...\")\n    \n    client = AzureOpenAI(\n\
+    \        api_key=os.getenv(\"AZURE_OPENAI_API_KEY\"),\n        api_version=\"\
+    2024-05-01-preview\",\n        azure_endpoint=os.getenv(\"AZURE_OPENAI_ENDPOINT\"\
+    )\n    )\n    \n    system_prompt = os.getenv(\"SYSTEM_PROMPT\", \"Default SRE\
+    \ behavior.\")\n    \n    response = client.chat.completions.create(\n       \
+    \ model=\"gpt-5-mini\",\n        messages=[\n            {\"role\": \"system\"\
+    , \"content\": system_prompt},\n            {\"role\": \"user\", \"content\":\
+    \ f\"Analyze this live SigNoz incident data: {telemetry_context}\"}\n        ],\n\
+    \        tools=tools_schema,\n        tool_choice=\"auto\"\n    )\n    \n    span.set_attribute(\"\
+    gen_ai.usage.prompt_tokens\", response.usage.prompt_tokens if response.usage else\
+    \ 0)\n    span.set_attribute(\"gen_ai.usage.completion_tokens\", response.usage.completion_tokens\
+    \ if response.usage else 0)\n    \n    response_message = response.choices[0].message\n\
+    \    \n    # Check for Explicit Phase 2 Interlock Stop (HALT)\n    if response_message.content\
+    \ and \"HALT_INSUFFICIENT_TOOLS\" in response_message.content:\n        logger.warning(\"\
+    \\U0001F6A8 [PHASE 2 GUARDRAIL BREACHED] - Agent lacks the necessary tools to\
+    \ safely cure this incident.\")\n        logger.warning(f\"Reasoning breakdown\
+    \ from LLM: {response_message.content}\")\n        print(f\"SLACK_ALERT: Operational\
+    \ failure detected. Requiring Manual Intervention. Details: {response_message.content}\"\
+    )\n        return\n        \n    if response_message.tool_calls:\n        for\
+    \ tool_call in response_message.tool_calls:\n            name = tool_call.function.name\n\
+    \            args = json.loads(tool_call.function.arguments)\n            reasoning\
+    \ = response_message.content or \"No explicit reasoning provided by LLM.\"\n \
+    \           try:\n                incident_type = json.loads(telemetry_context).get(\"\
+    incident\", \"Unknown Incident\")\n            except:\n                incident_type\
+    \ = \"Unknown Incident\"\n            result = execute_tool(name, args, reasoning,\
+    \ incident_type)\n            logger.info(f\"Action Result: {result}\")\n    else:\n\
+    \        logger.info(f\"Telemetry evaluated. No remediation action required or\
+    \ safe state reached: {response_message.content}\")\n\n\n# ============================================================================\n\
+    # AUTONOMOUS MULTI-INCIDENT DIAGNOSTIC ENGINE\n# ============================================================================\n\
+    # Instead of a single hardcoded OOMKilled search, we run a battery of health\n\
+    # checks across both MCP (SigNoz telemetry) and the Kubernetes API. Each\n# check\
+    \ produces a standardized IncidentContext if an anomaly is found.\n# ============================================================================\n\
+    \nHEALTH_CHECKS_MCP = [\n    {\n        \"name\": \"Resource Starvation (OOM)\"\
+    ,\n        \"searchText\": \"OOMKilled\",\n        \"filter\": \"resource.k8s.deployment.name\
+    \ = 'fraud-detection-api'\",\n        \"timeRange\": \"5m\",\n        \"incident_template\"\
+    : {\n            \"incident\": \"OOMKilled\",\n            \"deployment\": \"\
+    fraud-detection-api\",\n            \"namespace\": \"oppe2-app\",\n          \
+    \  \"description\": \"Pod terminated due to memory starvation (OOMKilled). Critical\
+    \ resource exhaustion detected via MCP.\"\n        }\n    },\n    {\n        \"\
+    name\": \"Resource Starvation (Limit)\",\n        \"searchText\": \"MemoryLimitExceeded\"\
+    ,\n        \"filter\": \"resource.k8s.deployment.name = 'fraud-detection-api'\"\
+    ,\n        \"timeRange\": \"5m\",\n        \"incident_template\": {\n        \
+    \    \"incident\": \"OOMKilled\",\n            \"deployment\": \"fraud-detection-api\"\
+    ,\n            \"namespace\": \"oppe2-app\",\n            \"description\": \"\
+    Pod memory usage limit exceeded. Critical resource exhaustion detected via MCP.\"\
+    \n        }\n    },\n    {\n        \"name\": \"Traffic Spike / Latency (Timeout)\"\
+    ,\n        \"searchText\": \"timeout\",\n        \"filter\": \"resource.k8s.deployment.name\
+    \ = 'fraud-detection-api'\",\n        \"timeRange\": \"5m\",\n        \"incident_template\"\
+    : {\n            \"incident\": \"Traffic Spike\",\n            \"deployment\"\
+    : \"fraud-detection-api\",\n            \"namespace\": \"oppe2-app\",\n      \
+    \      \"description\": \"Sustained timeout or high-latency errors detected. Possible\
+    \ traffic spike overwhelming available replicas.\"\n        }\n    },\n    {\n\
+    \        \"name\": \"Traffic Spike / Latency (504)\",\n        \"searchText\"\
+    : \"504\",\n        \"filter\": \"resource.k8s.deployment.name = 'fraud-detection-api'\"\
+    ,\n        \"timeRange\": \"5m\",\n        \"incident_template\": {\n        \
+    \    \"incident\": \"Traffic Spike\",\n            \"deployment\": \"fraud-detection-api\"\
+    ,\n            \"namespace\": \"oppe2-app\",\n            \"description\": \"\
+    504 gateway timeout errors detected in API. Possible traffic spike overwhelming\
+    \ available replicas.\"\n        }\n    },\n    {\n        \"name\": \"Model Drift\
+    \ (Drift)\",\n        \"searchText\": \"drift detected\",\n        \"filter\"\
+    : \"resource.k8s.deployment.name = 'fraud-detection-api'\",\n        \"timeRange\"\
+    : \"10m\",\n        \"incident_template\": {\n            \"incident\": \"Model\
+    \ Drift\",\n            \"deployment\": \"fraud-detection-api\",\n           \
+    \ \"namespace\": \"oppe2-app\",\n            \"description\": \"ML model drift\
+    \ detected. Prediction confidence has fallen below acceptable threshold.\"\n \
+    \       }\n    },\n    {\n        \"name\": \"Model Drift (Confidence)\",\n  \
+    \      \"searchText\": \"confidence below threshold\",\n        \"filter\": \"\
+    resource.k8s.deployment.name = 'fraud-detection-api'\",\n        \"timeRange\"\
+    : \"10m\",\n        \"incident_template\": {\n            \"incident\": \"Model\
+    \ Drift\",\n            \"deployment\": \"fraud-detection-api\",\n           \
+    \ \"namespace\": \"oppe2-app\",\n            \"description\": \"Model prediction\
+    \ confidence has degraded below acceptable thresholds.\"\n        }\n    }\n]\n\
+    \n\n@tracer.start_as_current_span(\"check_mcp_health\")\ndef _run_mcp_checks(mcp_endpoint:\
+    \ str) -> str:\n    \"\"\"Run all MCP-based health checks against SigNoz logs.\
+    \ Returns incident JSON or OK.\"\"\"\n    span = trace.get_current_span()\n\n\
+    \    async def _query():\n        try:\n            async with streamablehttp_client(mcp_endpoint)\
+    \ as (read_stream, write_stream, get_sid):\n                async with ClientSession(read_stream,\
+    \ write_stream) as session:\n                    await session.initialize()\n\n\
+    \                    for check in HEALTH_CHECKS_MCP:\n                       \
+    \ args = {\n                            \"searchText\": check[\"searchText\"],\n\
+    \                            \"filter\": check[\"filter\"],\n                \
+    \            \"timeRange\": check[\"timeRange\"]\n                        }\n\
+    \                        try:\n                            result = await session.call_tool(\"\
+    signoz_search_logs\", args)\n                            if hasattr(result, \"\
+    content\") and result.content:\n                                content_str =\
+    \ result.content[0].text\n                                data = json.loads(content_str)\n\
+    \                                \n                                # Parse the\
+    \ nested query results structure from SigNoz MCP\n                           \
+    \     results = data.get(\"data\", {}).get(\"data\", {}).get(\"results\", [])\n\
+    \                                rows = []\n                                if\
+    \ results and len(results) > 0:\n                                    rows = results[0].get(\"\
+    rows\", [])\n                                    \n                          \
+    \      if len(rows) > 0:\n                                    span.set_attribute(\"\
+    incident.detected\", True)\n                                    span.set_attribute(\"\
+    incident.type\", check[\"name\"])\n                                    logger.warning(f\"\
+    \\U0001F6A8 SigNoz MCP Alert: {check['name']} detected!\")\n                 \
+    \                   return json.dumps(check[\"incident_template\"])\n        \
+    \                except Exception as tool_err:\n                            logger.debug(f\"\
+    MCP check '{check['name']}' tool error: {tool_err}\")\n                      \
+    \      continue\n\n                    span.set_attribute(\"incident.detected\"\
+    , False)\n                    return json.dumps({\"status\": \"OK\"})\n      \
+    \  except Exception as e:\n            raise e\n\n    return asyncio.run(asyncio.wait_for(_query(),\
+    \ timeout=15.0))\n\n\n@tracer.start_as_current_span(\"check_k8s_health\")\ndef\
+    \ _run_k8s_checks() -> str:\n    \"\"\"Run Kubernetes API health checks. Returns\
+    \ incident JSON or OK.\"\"\"\n    span = trace.get_current_span()\n    namespace\
+    \ = \"oppe2-app\"\n    deployment = \"fraud-detection-api\"\n\n    # --- Check\
+    \ 1: Pod-level anomalies (OOMKilled, CrashLoopBackOff, ImagePullBackOff) ---\n\
+    \    try:\n        cmd = f\"kubectl get pods -l app={deployment} -n {namespace}\
+    \ -o json\"\n        res = subprocess.run(cmd, shell=True, capture_output=True,\
+    \ text=True, check=True)\n        pods = json.loads(res.stdout).get(\"items\"\
+    , [])\n        for pod in pods:\n            pod_name = pod.get(\"metadata\",\
+    \ {}).get(\"name\", \"unknown\")\n            statuses = pod.get(\"status\", {}).get(\"\
+    containerStatuses\", [])\n            for status in statuses:\n              \
+    \  state = status.get(\"state\", {})\n                last_state = status.get(\"\
+    lastState\", {})\n\n                # OOMKilled\n                if state.get(\"\
+    terminated\", {}).get(\"reason\") == \"OOMKilled\" or \\\n                   last_state.get(\"\
+    terminated\", {}).get(\"reason\") == \"OOMKilled\":\n                    span.set_attribute(\"\
+    incident.detected\", True)\n                    span.set_attribute(\"incident.type\"\
+    , \"OOMKilled\")\n                    logger.warning(\"\\U0001F6A8 Alert: OOMKilled\
+    \ detected in live telemetry!\")\n                    return json.dumps({\n  \
+    \                      \"incident\": \"OOMKilled\",\n                        \"\
+    deployment\": deployment,\n                        \"namespace\": namespace,\n\
+    \                        \"pod\": pod_name,\n                        \"description\"\
+    : \"Pod terminated due to memory starvation (OOMKilled). Critical resource exhaustion\
+    \ detected.\"\n                    })\n\n                # CrashLoopBackOff\n\
+    \                waiting = state.get(\"waiting\", {})\n                if waiting.get(\"\
+    reason\") in [\"CrashLoopBackOff\", \"ImagePullBackOff\", \"ErrImagePull\"]:\n\
+    \                    reason = waiting[\"reason\"]\n                    span.set_attribute(\"\
+    incident.detected\", True)\n                    span.set_attribute(\"incident.type\"\
+    , reason)\n                    logger.warning(f\"\\U0001F6A8 Alert: {reason} detected\
+    \ for pod {pod_name}!\")\n                    return json.dumps({\n          \
+    \              \"incident\": \"Bad Release\" if reason in [\"ImagePullBackOff\"\
+    , \"ErrImagePull\"] else \"CrashLoop\",\n                        \"deployment\"\
+    : deployment,\n                        \"namespace\": namespace,\n           \
+    \             \"pod\": pod_name,\n                        \"description\": f\"\
+    Pod {pod_name} is in {reason} state. Likely a bad release or configuration error.\"\
+    \n                    })\n\n            # Check restart count for silent crash\
+    \ loops\n            for status in statuses:\n                restart_count =\
+    \ status.get(\"restartCount\", 0)\n                if restart_count >= 5:\n  \
+    \                  span.set_attribute(\"incident.detected\", True)\n         \
+    \           span.set_attribute(\"incident.type\", \"ExcessiveRestarts\")\n   \
+    \                 logger.warning(f\"\\U0001F6A8 Alert: Pod {pod_name} has {restart_count}\
+    \ restarts!\")\n                    return json.dumps({\n                    \
+    \    \"incident\": \"CrashLoop\",\n                        \"deployment\": deployment,\n\
+    \                        \"namespace\": namespace,\n                        \"\
+    pod\": pod_name,\n                        \"description\": f\"Pod {pod_name} has\
+    \ restarted {restart_count} times. Possible silent crash loop.\"\n           \
+    \         })\n\n    except Exception as e:\n        logger.error(f\"K8s pod check\
+    \ failed: {e}\")\n\n    # --- Check 2: Node-level pressure conditions ---\n  \
+    \  try:\n        cmd = \"kubectl get nodes -o json\"\n        res = subprocess.run(cmd,\
+    \ shell=True, capture_output=True, text=True, check=True)\n        nodes = json.loads(res.stdout).get(\"\
+    items\", [])\n        for node in nodes:\n            node_name = node.get(\"\
+    metadata\", {}).get(\"name\", \"unknown\")\n            conditions = node.get(\"\
+    status\", {}).get(\"conditions\", [])\n            for cond in conditions:\n \
+    \               if cond.get(\"type\") in [\"MemoryPressure\", \"DiskPressure\"\
+    , \"PIDPressure\"] and \\\n                   cond.get(\"status\") == \"True\"\
+    :\n                    pressure_type = cond[\"type\"]\n                    span.set_attribute(\"\
+    incident.detected\", True)\n                    span.set_attribute(\"incident.type\"\
+    , pressure_type)\n                    logger.warning(f\"\\U0001F6A8 Alert: Node\
+    \ {node_name} has {pressure_type}!\")\n                    return json.dumps({\n\
+    \                        \"incident\": \"Node Pressure\",\n                  \
+    \      \"deployment\": deployment,\n                        \"namespace\": namespace,\n\
+    \                        \"node\": node_name,\n                        \"description\"\
+    : f\"Node {node_name} reports {pressure_type}. Hardware resource exhaustion imminent.\"\
+    \n                    })\n    except Exception as e:\n        logger.error(f\"\
+    K8s node check failed: {e}\")\n\n    span.set_attribute(\"incident.detected\"\
+    , False)\n    return json.dumps({\"status\": \"OK\"})\n\n\n@tracer.start_as_current_span(\"\
+    diagnostic_engine\")\ndef run_diagnostic_engine() -> str:\n    \"\"\"\n    Autonomous\
+    \ Diagnostic Engine: runs MCP checks first, then K8s API checks.\n    Returns\
+    \ the first detected incident or OK.\n    \"\"\"\n    span = trace.get_current_span()\n\
+    \    mcp_endpoint = os.getenv(\"SIGNOZ_MCP_ENDPOINT\", \"http://signoz-mcp.oppe2-app.svc.cluster.local:8000/mcp\"\
+    )\n\n    # --- Phase A: MCP-based telemetry checks ---\n    logger.info(\"Diagnostic\
+    \ Engine: Running MCP-based health checks...\")\n    try:\n        mcp_result\
+    \ = _run_mcp_checks(mcp_endpoint)\n        if '\"status\": \"OK\"' not in mcp_result:\n\
+    \            span.set_attribute(\"detection.source\", \"MCP\")\n            return\
+    \ mcp_result\n    except Exception as e:\n        logger.warning(f\"MCP checks\
+    \ failed, falling back to K8s API... ({e})\")\n        span.set_attribute(\"mcp.fallback\"\
+    , True)\n\n    # --- Phase B: Kubernetes API health checks (always run as augmentation)\
+    \ ---\n    logger.info(\"Diagnostic Engine: Running K8s API health checks...\"\
+    )\n    k8s_result = _run_k8s_checks()\n    if '\"status\": \"OK\"' not in k8s_result:\n\
+    \        span.set_attribute(\"detection.source\", \"K8sAPI\")\n        return\
+    \ k8s_result\n\n    return json.dumps({\"status\": \"OK\"})\n\n\nLAST_REMEDIATION_TIME\
+    \ = {}\nCOOLDOWN_SECONDS = 300\n\ndef main_loop():\n    logger.info(\"Starting\
+    \ Autonomous Diagnostic Engine...\")\n    while True:\n        try:\n        \
+    \    incident_data = run_diagnostic_engine()\n            if '\"status\": \"OK\"\
+    ' not in incident_data:\n                try:\n                    incident_dict\
+    \ = json.loads(incident_data)\n                    incident_type = incident_dict.get(\"\
+    incident\", \"Unknown\")\n                except Exception:\n                \
+    \    incident_type = \"Unknown\"\n                \n                current_time\
+    \ = time.time()\n                last_time = LAST_REMEDIATION_TIME.get(incident_type,\
+    \ 0)\n                if current_time - last_time < COOLDOWN_SECONDS:\n      \
+    \              logger.info(f\"Cooldown active for '{incident_type}'. Skipping\
+    \ remediation.\")\n                else:\n                    run_agent_workflow(incident_data)\n\
+    \                    LAST_REMEDIATION_TIME[incident_type] = current_time\n   \
+    \     except Exception as e:\n            logger.error(f\"Error in SRE Copilot\
+    \ Loop: {e}\")\n\n        logger.info(\"Sleeping for 10 seconds before next check...\"\
+    )\n        time.sleep(10)\n\nif __name__ == \"__main__\":\n    try:\n        main_loop()\n\
+    \    except KeyboardInterrupt:\n        logger.info(\"Exiting Copilot...\")\n"
+"kind": |-
+  ConfigMap
+"metadata":
+  "name": |-
+    sre-copilot-code
+  "namespace": |-
+    oppe2-app
+  "labels":
+    "app": |-
+      sre-copilot

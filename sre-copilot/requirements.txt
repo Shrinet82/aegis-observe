@@ -9,3 +9,5 @@ mcp
 requests
 pytest
 httpx
+slack_sdk
+slack_bolt

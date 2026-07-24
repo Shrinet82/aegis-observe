@@ -18,7 +18,7 @@ COPY requirements.txt /app/requirements.txt
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy application source
-COPY agent.py /app/agent.py
+COPY *.py /app/
 
 # Run agent
 CMD ["python", "-u", "/app/agent.py"]

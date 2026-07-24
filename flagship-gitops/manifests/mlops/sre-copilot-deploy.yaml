@@ -20,14 +20,8 @@ spec:
         role: mlops
       containers:
         - name: copilot
-          image: python:3.11-slim
-          command:
-            - /bin/bash
-            - -c
-            - "apt-get update && apt-get install -y curl git && curl -LO https://dl.k8s.io/release/v1.30.0/bin/linux/amd64/kubectl && chmod +x kubectl && mv kubectl /usr/local/bin/ && pip install -r /app/requirements.txt && python /app/agent.py"
-          volumeMounts:
-            - name: code
-              mountPath: /app
+          image: ttl.sh/sre-copilot-aegis:24h
+          imagePullPolicy: Always
           env:
             - name: AZURE_OPENAI_API_KEY
               valueFrom:
@@ -67,7 +61,18 @@ spec:
               value: "http://signoz-ingester.signoz.svc.cluster.local:4317"
             - name: AZURE_OPENAI_ENDPOINT
               value: "https://shashwatpratap94550-3810-resourc.services.ai.azure.com/"
-      volumes:
-        - name: code
-          configMap:
-            name: sre-copilot-code
+            - name: SLACK_WEBHOOK_URL
+              valueFrom:
+                secretKeyRef:
+                  name: slack-credentials
+                  key: webhook-url
+            - name: SLACK_BOT_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: slack-credentials
+                  key: bot-token
+            - name: SLACK_APP_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: slack-credentials
+                  key: app-token

@@ -4,7 +4,7 @@ metadata:
   name: fraud-detection-api
   namespace: oppe2-app
 spec:
-  replicas: 1
+  replicas: 6
   selector:
     matchLabels:
       app: fraud-detection-api
@@ -19,8 +19,8 @@ spec:
       serviceAccountName: telemetry-access
       containers:
       - name: fraud-api-container
-        image: ghcr.io/shrinet82/fraud-app:latest
-        imagePullPolicy: Always
+        image: fraud-app:local
+        imagePullPolicy: Never
         command: ["/bin/sh", "-c"]
         args:
         - "pip install opentelemetry-instrumentation-fastapi==0.46b0 && uvicorn app:app --host 0.0.0.0 --port 8001"
@@ -31,6 +31,8 @@ spec:
         env:
         - name: OTEL_EXPORTER_OTLP_ENDPOINT
           value: "http://signoz-ingester.signoz.svc.cluster.local:4317"
+        - name: OTEL_METRICS_EXEMPLAR_FILTER
+          value: "trace_based"
         ports:
         - containerPort: 8001
         readinessProbe:
@@ -48,10 +50,10 @@ spec:
         resources:
           requests:
             cpu: "500m"
-            memory: 2Gi
+            memory: 256Mi
           limits:
-            cpu: "1000m"
-            memory: 3Gi
+            cpu: "500m"
+            memory: 256Mi
       volumes:
       - name: app-py-volume
         configMap:
