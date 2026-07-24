@@ -1,0 +1,39 @@
+{
+  "alertName": "Fraud API 504 Error Surge",
+  "alertType": "logs_based_alert",
+  "description": "Alerts when 504 gateway timeout log errors in fraud-detection-api exceed 5 in a 5-minute window (app SLO breach)",
+  "evalWindow": "5m",
+  "frequency": "1m",
+  "condition": {
+    "queryType": "builder",
+    "builderQuery": {
+      "queryName": "A",
+      "aggregateOperator": "count",
+      "dataSource": "logs",
+      "filters": {
+        "items": [
+          {
+            "key": "body",
+            "operator": "contains",
+            "value": "504"
+          },
+          {
+            "key": "resource.k8s.deployment.name",
+            "operator": "in",
+            "value": [
+              "fraud-detection-api"
+            ]
+          }
+        ],
+        "op": "AND"
+      }
+    },
+    "op": ">",
+    "target": 5
+  },
+  "labels": {
+    "severity": "critical",
+    "team": "sre",
+    "service": "fraud-detection-api"
+  }
+}

@@ -1,6 +1,6 @@
 # 🛡️ Aegis-Observe: Autonomous SRE Copilot
 
-**Aegis-Observe** is an intelligent, closed-loop Site Reliability Engineering (SRE) agent designed to bridge the gap between passive observability and active incident remediation. Built for the **"Agents of SigNoz"** hackathon, it leverages the SigNoz Model Context Protocol (MCP) and Large Language Models (LLMs) to detect anomalies, diagnose root causes, and execute autonomous fixes directly in Kubernetes and GitOps pipelines.
+**Aegis-Observe** is an intelligent, closed-loop Site Reliability Engineering (SRE) agent designed to bridge the gap between passive observability and active incident remediation. Built for the **"Agents of SigNoz"** hackathon, it leverages the SigNoz Model Context Protocol (MCP), Large Language Models (LLMs), and all **5 Pillars of Observability (Traces, Metrics, Logs, Dashboards, and Alerts)** to detect anomalies, diagnose root causes, and execute autonomous fixes directly in Kubernetes and GitOps pipelines.
 
 ---
 
@@ -36,7 +36,7 @@ Modern observability tools tell you *when* things break and *why* they broke. **
 sequenceDiagram
     autonumber
     participant App as 🟢 fraud-detection-api
-    participant SigNoz as 📊 SigNoz (ClickHouse / MCP)
+    participant SigNoz as 📊 SigNoz (ClickHouse / MCP / Alerts)
     participant Agent as 🤖 Aegis SRE Agent
     participant LLM as 🧠 Azure OpenAI (GPT-5-mini)
     participant Slack as 💬 Slack Workspace (Socket Mode)
@@ -46,7 +46,7 @@ sequenceDiagram
     loop Diagnostic Engine (Every 10s)
         Agent->>SigNoz: Polls MCP (`signoz_search_logs` / PromQL)
     end
-    SigNoz-->>Agent: Anomaly Detected (e.g., Traffic Spike / 504s)
+    SigNoz-->>Agent: Anomaly / Alert Triggered (e.g., Traffic Spike / 504s)
     
     Agent->>LLM: Send Telemetry Context & Guardrail Matrix
     LLM-->>Agent: Proposes Tool: `scale_deployment(replicas=6)`
@@ -79,8 +79,8 @@ sequenceDiagram
 
 ## 🧠 Core Capabilities
 
-### 1. Continuous Telemetry Analysis (via SigNoz MCP)
-Aegis-Observe continuously monitors application health by directly interacting with the SigNoz MCP server over Streamable HTTP.
+### 1. Continuous Telemetry Analysis (via SigNoz MCP & Alerts)
+Aegis-Observe continuously monitors application health by directly interacting with the SigNoz MCP server over Streamable HTTP and evaluating SigNoz Alert Rules (`alerts/llm_token_usage.json`, `alerts/fraud_api_504.json`).
 * **Log & Trace Mining**: It searches logs for specific error signatures (e.g., `504 Gateway Timeout`, `OOMKilled`, `High Latency`) and fetches trace details to build context around anomalies.
 * **Proactive Polling**: Operates on a continuous diagnostic loop, evaluating cluster health without requiring human prompts.
 
@@ -110,7 +110,7 @@ Aegis-Observe implements a sophisticated, multi-tiered approach to fixing issues
 
 ## 👁️ Self-Observability & Auditability
 
-* **LLM Token Tracking**: Every diagnostic loop generates traces. Custom span attributes (`gen_ai.usage.prompt_tokens`, `gen_ai.usage.completion_tokens`) are recorded and visualized in SigNoz.
+* **LLM Token Tracking & Alerting**: Every diagnostic loop generates traces. Custom span attributes (`gen_ai.usage.prompt_tokens`, `gen_ai.usage.completion_tokens`) are recorded, visualized, and monitored via `alerts/llm_token_usage.json` runaway cost alert.
 * **Intervention Audits**: Every tool execution (`execute_tool`) is traced. A dedicated SigNoz dashboard tracks tool usage and ClickHouse trace logs.
 * **Slack Socket Mode Integration**: Interactive Block Kit cards feature stateless button payloads, deep-links to SigNoz UI, and 3 authorization options (`Approve`, `PR`, `Reject`).
 
@@ -119,9 +119,10 @@ Aegis-Observe implements a sophisticated, multi-tiered approach to fixing issues
 ## 🏆 Hackathon Criteria Alignment (Agents of SigNoz)
 
 1. **Mandatory Rule Passed**: Full reliance on SigNoz MCP for context gathering and environment awareness. Foundry `casting.yaml` and `casting.yaml.lock` are present at the repository root.
-2. **Best Agentic Observability Use-Case**: Solves the real-world SRE problem of alert fatigue by moving from "alerting" to "resolving."
-3. **Innovative Use of SigNoz**: We aren't just reading from SigNoz; we are *writing* to it. We use SigNoz to observe the agent itself.
-4. **Completeness & Execution**: Containerized, GitOps-aware, Slack-integrated pipeline with robust Circuit Breaker locking.
+2. **5 Pillars of Observability Covered**: Leverages Traces, Metrics, Logs, Dashboards, **AND SigNoz Alert Rules**.
+3. **Best Agentic Observability Use-Case**: Solves the real-world SRE problem of alert fatigue by moving from "alerting" to "resolving."
+4. **Innovative Use of SigNoz**: We aren't just reading from SigNoz; we are *writing* to it. We use SigNoz to observe the agent itself.
+5. **Completeness & Execution**: Containerized, GitOps-aware, Slack-integrated pipeline with robust Circuit Breaker locking.
 
 ---
 
@@ -133,4 +134,4 @@ For full technical documentation, explore the detailed guides in the repository:
 - 🏗️ **[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)** — System Architecture & Telemetry Pipeline
 - 💬 **[docs/SLACK_UX_AND_HITL.md](docs/SLACK_UX_AND_HITL.md)** — Interactive Slack UX & Socket Mode Guide
 - 🐙 **[docs/GITOPS_AND_REMEDIATION.md](docs/GITOPS_AND_REMEDIATION.md)** — GitOps Tiering & Remediation Engine
-- 📊 **[docs/DASHBOARDS_AND_OBSERVABILITY.md](docs/DASHBOARDS_AND_OBSERVABILITY.md)** — SigNoz Dashboards & ClickHouse Queries
+- 📊 **[docs/DASHBOARDS_AND_OBSERVABILITY.md](docs/DASHBOARDS_AND_OBSERVABILITY.md)** — SigNoz Dashboards, Alerts & ClickHouse Queries

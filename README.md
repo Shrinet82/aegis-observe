@@ -8,7 +8,7 @@
 
 **Aegis-Observe** is an autonomous, self-healing SRE platform designed for enterprise MLOps, built specifically for the **Agents of SigNoz Hackathon (Track 01: AI & Agent Observability)**.
 
-It connects a deterministic LLM-powered SRE agent with application telemetry in real-time using the **SigNoz Model Context Protocol (MCP) Server**. It automatically diagnoses cluster anomalies (memory starvation, traffic spikes, model drift, bad releases) and executes human-authorized remediations through GitOps and Kubernetes APIs.
+It connects a deterministic LLM-powered SRE agent with application telemetry in real-time using the **SigNoz Model Context Protocol (MCP) Server**. It leverages all **5 Pillars of SigNoz Observability** — **Traces, Metrics, Logs, Dashboards, and Alert Rules** — to automatically diagnose cluster anomalies (memory starvation, traffic spikes, model drift, bad releases) and execute human-authorized remediations through GitOps and Kubernetes APIs.
 
 ---
 
@@ -48,7 +48,7 @@ graph TB
     end
 
     subgraph "Observability Layer (signoz)"
-        DASH["SigNoz Dashboard & ClickHouse Store<br/>(signoz_traces.signoz_index_v3)"]
+        DASH["SigNoz Dashboard, Alerts & ClickHouse Store<br/>(signoz_traces.signoz_index_v3)"]
     end
 
     subgraph "Human-in-the-Loop Gateway"
@@ -73,6 +73,7 @@ graph TB
 | Feature | Description | File Reference |
 | :--- | :--- | :--- |
 | **SigNoz MCP Telemetry Mining** | Mines ClickHouse log streams and trace indexes via Streamable HTTP MCP tools. | [mcp_client.py](sre-copilot/mcp_client.py) |
+| **SigNoz Alert Rules Suite** | Declarative alert rules for agent cost guardrails (`llm_token_usage.json`) and app 504 SLO breaches (`fraud_api_504.json`). | [alerts/](alerts/) |
 | **Circuit-Breaker Locking** | `PENDING_INCIDENTS` set locks diagnostic loops while alerts sit in Slack, preventing race conditions. | [agent.py](sre-copilot/agent.py) |
 | **Interactive Slack Gateway** | Slack Block Kit UI with Socket Mode (`Approve`, `PR`, `Reject`) embedding stateless payloads. | [slack_notifier.py](sre-copilot/slack_notifier.py) |
 | **Tiered GitOps Remediation** | Tier 1 instant push to `main` vs Tier 2 GitHub PR creation with LLM reasoning breakdown. | [gitops.py](sre-copilot/gitops.py) |
@@ -93,8 +94,8 @@ To spin up the observability stack via Foundry:
 foundry cast apply
 ```
 
-### 2. SigNoz MCP Requirement
-The agent natively queries SigNoz telemetry using the official **SigNoz MCP Server** endpoint (`http://signoz-mcp.oppe2-app.svc.cluster.local:8000/mcp`) via `signoz_search_logs` and `signoz_get_trace_details`.
+### 2. SigNoz MCP & 5-Pillar Observability Requirement
+The agent natively queries SigNoz telemetry using the official **SigNoz MCP Server** endpoint (`http://signoz-mcp.oppe2-app.svc.cluster.local:8000/mcp`) via `signoz_search_logs` and `signoz_get_trace_details`. It integrates all 5 SigNoz observability pillars: **Traces, Metrics, Logs, Dashboards, and Alert Rules**.
 
 ### 3. AI Assistance Disclosure
 In accordance with the **Agents of SigNoz Hackathon** rules, we explicitly declare that AI coding assistants (including ChatGPT, Claude, and Gemini Antigravity) were utilized during the development of this project for architectural brainstorming, boilerplate generation, unit test creation, and pair programming. All core logic, safety guardrails, MCP server integrations, and telemetry configurations were thoroughly audited, tested, and validated by human developers.
@@ -109,4 +110,4 @@ For in-depth architectural guides, configuration details, and query schemas, ref
 * 🏗️ **[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)** — Deep System Architecture & Telemetry Pipeline
 * 💬 **[docs/SLACK_UX_AND_HITL.md](docs/SLACK_UX_AND_HITL.md)** — Interactive Slack UX, Socket Mode & Circuit Breaker Guide
 * 🐙 **[docs/GITOPS_AND_REMEDIATION.md](docs/GITOPS_AND_REMEDIATION.md)** — GitOps Tiering & Kubernetes Remediation Engine
-* 📊 **[docs/DASHBOARDS_AND_OBSERVABILITY.md](docs/DASHBOARDS_AND_OBSERVABILITY.md)** — SigNoz Dashboards & ClickHouse SQL Queries
+* 📊 **[docs/DASHBOARDS_AND_OBSERVABILITY.md](docs/DASHBOARDS_AND_OBSERVABILITY.md)** — SigNoz Dashboards, Alerts & ClickHouse SQL Queries

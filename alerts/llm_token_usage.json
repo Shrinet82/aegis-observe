@@ -1,0 +1,39 @@
+{
+  "alertName": "LLM Token Usage Runaway — sre-copilot-agent",
+  "alertType": "traces_based_alert",
+  "description": "Alerts when cumulative prompt tokens for Azure OpenAI calls by sre-copilot-agent exceed 50,000 in a 10-minute window (cost & runaway reasoning guardrail)",
+  "evalWindow": "10m",
+  "frequency": "1m",
+  "condition": {
+    "queryType": "builder",
+    "builderQuery": {
+      "queryName": "A",
+      "aggregateOperator": "sum",
+      "aggregateAttribute": {
+        "key": "gen_ai.usage.prompt_tokens",
+        "type": "number",
+        "isColumn": false
+      },
+      "dataSource": "traces",
+      "filters": {
+        "items": [
+          {
+            "key": "serviceName",
+            "operator": "in",
+            "value": [
+              "sre-copilot-agent"
+            ]
+          }
+        ],
+        "op": "AND"
+      }
+    },
+    "op": ">",
+    "target": 50000
+  },
+  "labels": {
+    "severity": "warning",
+    "team": "ai-sre",
+    "category": "cost-guardrail"
+  }
+}
