@@ -29,6 +29,19 @@ graph TD
 
 ---
 
+## 🔄 Git Submodule & Dual-Repository Synchronization
+
+The `flagship-gitops` folder inside `aegis-observe` is configured as a **Git Submodule** linked directly to `https://github.com/Shrinet82/flagship-gitops.git`.
+
+- **ArgoCD Cluster Sync**: ArgoCD syncs cluster workloads from `Shrinet82/flagship-gitops.git` (`main` branch).
+- **Agent Interventions**: SRE Copilot pushes remediation commits and PRs directly to `Shrinet82/flagship-gitops.git`.
+- **Local Workspace Sync**: To pull the agent's latest GitOps commits into your local `aegis-observe` workspace, simply run:
+  ```bash
+  git submodule update --remote --merge
+  ```
+
+---
+
 ## 🛡️ Remediation Tools & Execution Matrix
 
 | Tool Name | Scope | Default Strategy | Trigger Conditions |

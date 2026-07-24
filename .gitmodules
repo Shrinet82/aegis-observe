@@ -1,0 +1,4 @@
+[submodule "flagship-gitops"]
+	path = flagship-gitops
+	url = https://github.com/Shrinet82/flagship-gitops.git
+	branch = main
