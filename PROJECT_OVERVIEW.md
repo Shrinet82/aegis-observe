@@ -1,6 +1,6 @@
 # 🛡️ Aegis-Observe: Autonomous SRE Copilot
 
-**Aegis-Observe** is an intelligent, closed-loop Site Reliability Engineering (SRE) agent designed to bridge the gap between passive observability and active incident remediation. Built for the **"Agents of SigNoz"** hackathon, it leverages the SigNoz Model Context Protocol (MCP), Large Language Models (LLMs), and all **5 Pillars of Observability (Traces, Metrics, Logs, Dashboards, and Alerts)** to detect anomalies, diagnose root causes, and execute autonomous fixes directly in Kubernetes and GitOps pipelines.
+**Aegis-Observe** is an intelligent SRE Copilot designed to bridge the gap between passive observability and active incident remediation. Built for the **"Agents of SigNoz"** hackathon, it combines rule-based signal detection over SigNoz telemetry (via SigNoz MCP log-signature queries & Kubernetes status checks), LLM remediation selection (Azure OpenAI `gpt-5-mini`), and human-in-the-loop authorization across all **5 Pillars of Observability (Traces, Metrics, Logs, Dashboards, and Alerts)** to execute verified fixes directly in Kubernetes and GitOps pipelines.
 
 ---
 
@@ -26,7 +26,7 @@
 
 ## 🌟 The Vision
 
-Modern observability tools tell you *when* things break and *why* they broke. **Aegis-Observe** takes the final step: it fixes the problem for you, logs its reasoning, and reports back. It transforms SigNoz from a passive dashboard into an active, autonomous operator.
+Modern observability tools tell you *when* things break and *why* they broke. **Aegis-Observe** takes the final step: it pairs rule-based signal detection with LLM tool selection to propose the exact remediation, requests human authorization via interactive Slack cards, executes the fix, logs its reasoning, and reports back. It transforms SigNoz from a passive dashboard into an active, interactive copilot.
 
 ---
 
@@ -79,13 +79,16 @@ sequenceDiagram
 
 ## 🧠 Core Capabilities
 
+> [!NOTE]
+> **Demo Scope**: Aegis-Observe is currently demo-scoped to the `fraud-detection-api` workload in `oppe2-app` with hardcoded log signatures and manifest paths. The core rule-based detection ➔ LLM remediation selection ➔ HITL authorization loop fully generalizes to multi-service fleets.
+
 ### 1. Continuous Telemetry Analysis (via SigNoz MCP & Alerts)
 Aegis-Observe continuously monitors application health by directly interacting with the SigNoz MCP server over Streamable HTTP and evaluating SigNoz Alert Rules (`alerts/llm_token_usage.json`, `alerts/fraud_api_504.json`).
 * **Log & Trace Mining**: It searches logs for specific error signatures (e.g., `504 Gateway Timeout`, `OOMKilled`, `High Latency`) and fetches trace details to build context around anomalies.
 * **Proactive Polling**: Operates on a continuous diagnostic loop, evaluating cluster health without requiring human prompts.
 
 ### 2. Intelligent Diagnostics & Circuit-Breaker Locking
-When an anomaly is detected, the agent passes the incident context to Azure OpenAI (GPT model).
+When an anomaly is flagged by rule-based MCP log-signature searches, the agent passes the telemetry context to Azure OpenAI (GPT model) to select the appropriate remediation tool.
 * **Circuit-Breaker Incident Lock**: Uses an in-memory lock store (`PENDING_INCIDENTS`) so that while an alert card is waiting in Slack, the 10-second diagnostic loop skips re-evaluating the incident, eliminating duplicate notifications and execution leaks.
 * **Safety Guardrails**: Includes built-in safety mechanisms (`HALT_INSUFFICIENT_TOOLS`, `cooldown` annotations) to prevent runaway remediation loops or unauthorized actions when confidence is low.
 
@@ -131,7 +134,7 @@ Aegis-Observe implements a sophisticated, multi-tiered approach to fixing issues
 For full technical documentation, explore the detailed guides in the repository:
 
 - 🏠 **[README.md](README.md)** — Main Project Overview & Quickstart Guide
-- 🏗️ **[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)** — System Architecture & Telemetry Pipeline
+- 🏗️ **[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)** — Deep System Architecture & Telemetry Pipeline
 - 💬 **[docs/SLACK_UX_AND_HITL.md](docs/SLACK_UX_AND_HITL.md)** — Interactive Slack UX & Socket Mode Guide
 - 🐙 **[docs/GITOPS_AND_REMEDIATION.md](docs/GITOPS_AND_REMEDIATION.md)** — GitOps Tiering & Remediation Engine
 - 📊 **[docs/DASHBOARDS_AND_OBSERVABILITY.md](docs/DASHBOARDS_AND_OBSERVABILITY.md)** — SigNoz Dashboards, Alerts & ClickHouse Queries

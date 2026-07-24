@@ -1,6 +1,6 @@
 # 🏗️ Aegis-Observe Architecture & Telemetry Pipeline
 
-**Aegis-Observe** is designed as a closed-loop, self-observing autonomous SRE agent. This document details the end-to-end technical architecture, component interactions, telemetry ingestion pipelines, and self-monitoring implementations.
+**Aegis-Observe** is designed as a closed-loop, self-observing SRE Copilot featuring rule-based SigNoz telemetry signal detection, LLM remediation selection, and human-in-the-loop authorization. This document details the end-to-end technical architecture, component interactions, telemetry ingestion pipelines, and self-monitoring implementations.
 
 ---
 

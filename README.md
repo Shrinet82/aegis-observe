@@ -1,4 +1,4 @@
-# 🛡️ Aegis-Observe: Autonomous SRE Copilot
+# 🛡️ Aegis-Observe: SRE Copilot
 
 [![Agents of SigNoz Hackathon](https://img.shields.io/badge/Hackathon-Agents_of_SigNoz-blueviolet?style=for-the-badge&logo=signoz)](https://signoz.io)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=for-the-badge)](https://opensource.org/licenses/MIT)
@@ -6,9 +6,9 @@
 [![Kubernetes](https://img.shields.io/badge/Kubernetes-k3s-326CE5?style=for-the-badge&logo=kubernetes)](https://kubernetes.io)
 [![GitOps](https://img.shields.io/badge/GitOps-ArgoCD-orange?style=for-the-badge&logo=argo)](https://argoproj.github.io/cd/)
 
-**Aegis-Observe** is an autonomous, self-healing SRE platform designed for enterprise MLOps, built specifically for the **Agents of SigNoz Hackathon (Track 01: AI & Agent Observability)**.
+**Aegis-Observe** is an SRE Copilot featuring rule-based SigNoz telemetry signal detection, LLM-selected remediations, and human-in-the-loop authorization (with an optional fully-autonomous mode), built specifically for the **Agents of SigNoz Hackathon (Track 01: AI & Agent Observability)**.
 
-It connects a deterministic LLM-powered SRE agent with application telemetry in real-time using the **SigNoz Model Context Protocol (MCP) Server**. It leverages all **5 Pillars of SigNoz Observability** — **Traces, Metrics, Logs, Dashboards, and Alert Rules** — to automatically diagnose cluster anomalies (memory starvation, traffic spikes, model drift, bad releases) and execute human-authorized remediations through GitOps and Kubernetes APIs.
+It connects rule-based signal detection over SigNoz telemetry (MCP log-signature searches & Kubernetes status checks) with an LLM decision layer (Azure OpenAI `gpt-5-mini`) to select exact remediation tools. The agent executes human-authorized remediations through GitOps and Kubernetes APIs across all **5 Pillars of SigNoz Observability** — **Traces, Metrics, Logs, Dashboards, and Alert Rules**.
 
 ---
 
@@ -79,6 +79,16 @@ graph TB
 | **Tiered GitOps Remediation** | Tier 1 instant push to `main` vs Tier 2 GitHub PR creation with LLM reasoning breakdown. | [gitops.py](sre-copilot/gitops.py) |
 | **Node Cordon & Drain** | Direct Kubernetes API node cordoning and eviction for hardware pressure. | [k8s_tools.py](sre-copilot/k8s_tools.py) |
 | **OTel Self-Observability** | Exports agent token consumption (`gen_ai.usage.prompt_tokens`) and tool spans to SigNoz. | [agent.py](sre-copilot/agent.py) |
+
+---
+
+## 🎯 Scope & Limitations
+
+> [!NOTE]
+> **Intentional Demo Scope**
+> * **Target Workload**: Currently demo-scoped to the `fraud-detection-api` deployment in namespace `oppe2-app`. Log signatures (e.g., `"OOMKilled"`, `"504"`, `"drift detected"`), target GitOps manifest paths, and cooldown annotations are configured specifically for this workload.
+> * **Human Authorization**: Remediations are human-authorized by default via interactive Slack cards (`Approve`, `PR`, `Reject`). Fully autonomous execution runs only if `SLACK_APP_TOKEN` is unset.
+> * **Generalizable Pattern**: The underlying **Rule-Based Signal Detection (SigNoz MCP) ➔ LLM Remediation Selection ➔ Human Authorization ➔ GitOps Fix ➔ Verification** pattern fully generalizes; multi-service dynamic discovery represents future work.
 
 ---
 
