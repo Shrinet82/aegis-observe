@@ -2,51 +2,59 @@ apiVersion: v1alpha1
 kind: Installation
 metadata:
   name: signoz
-  namespace: signoz
 spec:
   deployment:
     flavor: helm
     mode: kubernetes
-    chart:
-      name: signoz
-      repo: https://charts.signoz.io
-      version: 0.133.0
-    namespace: signoz
-  components:
-    ingester:
-      enabled: true
-      image: signoz/signoz-otel-collector:latest
+  ingester:
+    spec:
+      cluster:
+        replicas: 1
       env:
         SIGNOZ_OTEL_COLLECTOR_TIMEOUT: 10m
-      ports:
-        grpc: 4317
-        http: 4318
-    mcp:
+      image: signoz/signoz-otel-collector:latest
+      version: latest
+  mcp:
+    spec:
+      cluster:
+        replicas: 1
       enabled: true
       image: signoz/signoz-mcp-server:latest
-      namespace: oppe2-app
-      port: 8000
-    metastore:
-      enabled: true
-      kind: postgres
-      image: postgres:16
+      version: latest
+  metastore:
+    kind: postgres
+    spec:
+      cluster:
+        replicas: 1
       env:
         POSTGRES_DB: signoz
-        POSTGRES_USER: signoz
         POSTGRES_PASSWORD: signoz
-    signoz:
-      enabled: true
-      image: signoz/signoz:latest
+        POSTGRES_USER: signoz
+      image: postgres:16
+      version: "16"
+  signoz:
+    spec:
+      cluster:
+        replicas: 1
       env:
-        SIGNOZ_SQLSTORE_PROVIDER: postgres
         SIGNOZ_SQLSTORE_POSTGRES_DSN: postgres://signoz:signoz@signoz-metastore-postgres:5432/signoz?sslmode=disable
-        SIGNOZ_TELEMETRYSTORE_PROVIDER: clickhouse
+        SIGNOZ_SQLSTORE_PROVIDER: postgres
         SIGNOZ_TELEMETRYSTORE_CLICKHOUSE_DSN: tcp://signoz-telemetrystore-clickhouse:9000
-    telemetrykeeper:
-      enabled: true
-      kind: clickhousekeeper
+        SIGNOZ_TELEMETRYSTORE_PROVIDER: clickhouse
+      image: signoz/signoz:latest
+      version: latest
+  telemetrykeeper:
+    kind: clickhousekeeper
+    spec:
+      cluster:
+        replicas: 1
       image: clickhouse/clickhouse-keeper:25.12.5
-    telemetrystore:
-      enabled: true
-      kind: clickhouse
+      version: 25.12.5
+  telemetrystore:
+    kind: clickhouse
+    spec:
+      cluster:
+        replicas: 0
+        shards: 1
       image: clickhouse/clickhouse-server:25.12.5
+      version: 25.12.5

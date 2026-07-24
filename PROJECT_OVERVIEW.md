@@ -121,7 +121,7 @@ Aegis-Observe implements a sophisticated, multi-tiered approach to fixing issues
 
 ## 🏆 Hackathon Criteria Alignment & Foundry Reproducibility
 
-1. **SigNoz Foundry Reproducibility (`casting.yaml` & `foundryctl`)**: Full compliance with SigNoz Foundry. `casting.yaml` and `casting.yaml.lock` at repo root, reproducibly provisioned via `foundryctl` v0.2.16 (`foundryctl cast`).
+1. **SigNoz Foundry Reproducibility (`casting.yaml` & `foundryctl`)**: Full compliance with SigNoz Foundry. `casting.yaml` and `casting.yaml.lock` at repo root, reproducibly provisioned via `foundryctl` v0.2.16 (`foundryctl cast -f casting.yaml`).
 2. **5 Pillars of Observability Covered**: Leverages Traces, Metrics, Logs, Dashboards, **AND SigNoz Alert Rules**.
 3. **Best Agentic Observability Use-Case**: Solves the real-world SRE problem of alert fatigue by moving from "alerting" to "resolving."
 4. **Innovative Use of SigNoz**: We aren't just reading from SigNoz; we are *writing* to it. We use SigNoz to observe the agent itself.
