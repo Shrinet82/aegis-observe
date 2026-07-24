@@ -1,35 +1,48 @@
 {
-  "alertName": "LLM Token Usage Runaway — sre-copilot-agent",
-  "alertType": "traces_based_alert",
+  "alert": "LLM Token Usage Runaway — sre-copilot-agent",
+  "alertType": "TRACES_BASED_ALERT",
+  "ruleType": "threshold_rule",
   "description": "Alerts when cumulative prompt tokens for Azure OpenAI calls by sre-copilot-agent exceed 50,000 in a 10-minute window (cost & runaway reasoning guardrail)",
   "evalWindow": "10m",
   "frequency": "1m",
   "condition": {
-    "queryType": "builder",
-    "builderQuery": {
-      "queryName": "A",
-      "aggregateOperator": "sum",
-      "aggregateAttribute": {
-        "key": "gen_ai.usage.prompt_tokens",
-        "type": "number",
-        "isColumn": false
-      },
-      "dataSource": "traces",
-      "filters": {
-        "items": [
-          {
-            "key": "serviceName",
-            "operator": "in",
-            "value": [
-              "sre-copilot-agent"
-            ]
-          }
-        ],
-        "op": "AND"
+    "compositeQuery": {
+      "queryType": "builder",
+      "builderQueries": {
+        "A": {
+          "queryName": "A",
+          "aggregateOperator": "sum",
+          "aggregateAttribute": {
+            "key": "gen_ai.usage.prompt_tokens",
+            "type": "number",
+            "isColumn": false
+          },
+          "dataSource": "traces",
+          "filters": {
+            "items": [
+              {
+                "key": {
+                  "key": "serviceName",
+                  "type": "string",
+                  "isColumn": true
+                },
+                "op": "in",
+                "value": [
+                  "sre-copilot-agent"
+                ]
+              }
+            ],
+            "op": "AND"
+          },
+          "expression": "A",
+          "disabled": false
+        }
       }
     },
     "op": ">",
-    "target": 50000
+    "target": 50000,
+    "matchType": "1",
+    "selectedQueryName": "A"
   },
   "labels": {
     "severity": "warning",

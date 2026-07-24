@@ -1,35 +1,52 @@
 {
-  "alertName": "Fraud API 504 Error Surge",
-  "alertType": "logs_based_alert",
+  "alert": "Fraud API 504 Error Surge",
+  "alertType": "LOGS_BASED_ALERT",
+  "ruleType": "threshold_rule",
   "description": "Alerts when 504 gateway timeout log errors in fraud-detection-api exceed 5 in a 5-minute window (app SLO breach)",
   "evalWindow": "5m",
   "frequency": "1m",
   "condition": {
-    "queryType": "builder",
-    "builderQuery": {
-      "queryName": "A",
-      "aggregateOperator": "count",
-      "dataSource": "logs",
-      "filters": {
-        "items": [
-          {
-            "key": "body",
-            "operator": "contains",
-            "value": "504"
+    "compositeQuery": {
+      "queryType": "builder",
+      "builderQueries": {
+        "A": {
+          "queryName": "A",
+          "aggregateOperator": "count",
+          "dataSource": "logs",
+          "filters": {
+            "items": [
+              {
+                "key": {
+                  "key": "body",
+                  "type": "string",
+                  "isColumn": true
+                },
+                "op": "contains",
+                "value": "504"
+              },
+              {
+                "key": {
+                  "key": "resource.k8s.deployment.name",
+                  "type": "string",
+                  "isColumn": true
+                },
+                "op": "in",
+                "value": [
+                  "fraud-detection-api"
+                ]
+              }
+            ],
+            "op": "AND"
           },
-          {
-            "key": "resource.k8s.deployment.name",
-            "operator": "in",
-            "value": [
-              "fraud-detection-api"
-            ]
-          }
-        ],
-        "op": "AND"
+          "expression": "A",
+          "disabled": false
+        }
       }
     },
     "op": ">",
-    "target": 5
+    "target": 5,
+    "matchType": "1",
+    "selectedQueryName": "A"
   },
   "labels": {
     "severity": "critical",
