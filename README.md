@@ -84,15 +84,25 @@ graph TB
 
 ## 🏆 Hackathon Rules & Reproducibility Compliance
 
-### 1. SigNoz Foundry Requirement (`casting.yaml`)
-In accordance with the **Foundry & Reproducibility Check**, `casting.yaml` and `casting.yaml.lock` are located at the **root of the repository**:
-* [casting.yaml](casting.yaml)
-* [casting.yaml.lock](casting.yaml.lock)
+### 1. SigNoz Foundry Reproducibility (`casting.yaml` & `foundryctl`)
+In accordance with the **SigNoz Foundry Reproducibility Requirement**, `casting.yaml` and `casting.yaml.lock` are maintained at the root of the repository:
+* [casting.yaml](casting.yaml) — Declarative installation specification (`flavor: helm`, `mode: kubernetes`, chart `signoz-0.133.0` in namespace `signoz`).
+* [casting.yaml.lock](casting.yaml.lock) — Resolved deployment lockfile containing ingester, metastore, telemetrykeeper, and telemetrystore configurations.
 
-To spin up the observability stack via Foundry:
+#### Verified Reproducibility Command
+Tested & verified using **SigNoz `foundryctl` v0.2.16**:
 ```bash
-foundry cast apply
+# 1. Install or update foundryctl (if not already installed)
+curl -fsSL https://signoz.io/foundry.sh | bash
+
+# 2. Reproducibly provision the SigNoz observability stack in Kubernetes
+foundryctl cast
 ```
+
+**Verified Provisions:**
+* **Helm Release**: `signoz` (Chart `signoz-0.133.0`, App Version `v0.133.0`)
+* **Target Namespace**: `signoz`
+* **Components Provisioned**: `signoz` frontend/server (`signoz/signoz:latest`), `ingester` (`signoz/signoz-otel-collector:latest`), `metastore` (`postgres:16`), `telemetrykeeper` (`clickhouse/clickhouse-keeper:25.12.5`), `telemetrystore` (`clickhouse/clickhouse-server:25.12.5`).
 
 ### 2. SigNoz MCP & 5-Pillar Observability Requirement
 The agent natively queries SigNoz telemetry using the official **SigNoz MCP Server** endpoint (`http://signoz-mcp.oppe2-app.svc.cluster.local:8000/mcp`) via `signoz_search_logs` and `signoz_get_trace_details`. It integrates all 5 SigNoz observability pillars: **Traces, Metrics, Logs, Dashboards, and Alert Rules**.
