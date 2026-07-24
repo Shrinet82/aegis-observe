@@ -4,23 +4,23 @@
 
 ---
 
-## 📽️ Demo Video & Visual Evidence Placeholders
+## 📽️ Demo Video & Visual Evidence
 
 > [!IMPORTANT]
-> **Hackathon Submission Media Placeholders**
+> **Hackathon Submission Media**
 
 ### 🎬 Demo Video
-[![Aegis-Observe Hackathon Demo Video](file:///absolute/path/to/demo_video_thumbnail.png)](https://youtube.com/watch?v=YOUR_VIDEO_ID)
+[![Aegis-Observe Hackathon Demo Video](docs/assets/slack_proposal_card.png)](https://youtube.com/watch?v=YOUR_VIDEO_ID)
 *(Click above to watch the full walkthrough demo of Aegis-Observe detecting an incident, sending an interactive Slack proposal card, and pushing an authorized GitOps fix live on Kubernetes)*
 
 ### 📸 Visual Evidence Screenshots
 | Interactive Slack Proposal Card | Slack PR Authorized Card | GitHub Pull Request Created & Merged |
 | :---: | :---: | :---: |
-| ![Slack Proposal Card](file:///home/shrinet82/Opensource/SigNoz/docs/assets/slack_proposal_card.png) | ![Slack PR Authorized](file:///home/shrinet82/Opensource/SigNoz/docs/assets/slack_pr_opened.png) | ![GitHub PR #47 Merged](file:///home/shrinet82/Opensource/SigNoz/docs/assets/github_pr_merged.png) |
+| ![Slack Proposal Card](docs/assets/slack_proposal_card.png) | ![Slack PR Authorized](docs/assets/slack_pr_opened.png) | ![GitHub PR #47 Merged](docs/assets/github_pr_merged.png) |
 
 | SigNoz Aegis Fleet Dashboard | SRE Agent Metrics & Trace Audit | Kubernetes Node Metrics |
 | :---: | :---: | :---: |
-| ![SigNoz Aegis Dashboard](file:///home/shrinet82/Opensource/SigNoz/docs/assets/aegis_dashboard.png) | ![SigNoz SRE Agent Metrics](file:///home/shrinet82/Opensource/SigNoz/docs/assets/sre_agent_metrics_dashboard.png) | ![K8s Node Metrics](file:///home/shrinet82/Opensource/SigNoz/docs/assets/k8s_node_metrics.png) |
+| ![SigNoz Aegis Dashboard](docs/assets/aegis_dashboard.png) | ![SigNoz SRE Agent Metrics](docs/assets/sre_agent_metrics_dashboard.png) | ![K8s Node Metrics](docs/assets/k8s_node_metrics.png) |
 
 ---
 
@@ -129,8 +129,8 @@ Aegis-Observe implements a sophisticated, multi-tiered approach to fixing issues
 
 For full technical documentation, explore the detailed guides in the repository:
 
-- 🏠 **[README.md](file:///home/shrinet82/Opensource/SigNoz/README.md)** — Main Project Overview & Quickstart Guide
-- 🏗️ **[docs/ARCHITECTURE.md](file:///home/shrinet82/Opensource/SigNoz/docs/ARCHITECTURE.md)** — System Architecture & Telemetry Pipeline
-- 💬 **[docs/SLACK_UX_AND_HITL.md](file:///home/shrinet82/Opensource/SigNoz/docs/SLACK_UX_AND_HITL.md)** — Interactive Slack UX & Socket Mode Guide
-- 🐙 **[docs/GITOPS_AND_REMEDIATION.md](file:///home/shrinet82/Opensource/SigNoz/docs/GITOPS_AND_REMEDIATION.md)** — GitOps Tiering & Remediation Engine
-- 📊 **[docs/DASHBOARDS_AND_OBSERVABILITY.md](file:///home/shrinet82/Opensource/SigNoz/docs/DASHBOARDS_AND_OBSERVABILITY.md)** — SigNoz Dashboards & ClickHouse Queries
+- 🏠 **[README.md](README.md)** — Main Project Overview & Quickstart Guide
+- 🏗️ **[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)** — System Architecture & Telemetry Pipeline
+- 💬 **[docs/SLACK_UX_AND_HITL.md](docs/SLACK_UX_AND_HITL.md)** — Interactive Slack UX & Socket Mode Guide
+- 🐙 **[docs/GITOPS_AND_REMEDIATION.md](docs/GITOPS_AND_REMEDIATION.md)** — GitOps Tiering & Remediation Engine
+- 📊 **[docs/DASHBOARDS_AND_OBSERVABILITY.md](docs/DASHBOARDS_AND_OBSERVABILITY.md)** — SigNoz Dashboards & ClickHouse Queries

@@ -66,12 +66,12 @@ To prevent duplicate remediations or flapping:
 
 | GitHub Pull Request Created by Agent (#47) | GitHub Pull Request Merged into Main |
 | :---: | :---: |
-| ![GitHub PR Created](file:///home/shrinet82/Opensource/SigNoz/docs/assets/github_pr_open.png) | ![GitHub PR Merged](file:///home/shrinet82/Opensource/SigNoz/docs/assets/github_pr_merged.png) |
+| ![GitHub PR Created](assets/github_pr_open.png) | ![GitHub PR Merged](assets/github_pr_merged.png) |
 
 ---
 
 ## 🔗 Related Documentation
-- [README.md](file:///home/shrinet82/Opensource/SigNoz/README.md) — Main Project Overview & Quickstart
-- [ARCHITECTURE.md](file:///home/shrinet82/Opensource/SigNoz/docs/ARCHITECTURE.md) — System Architecture
-- [SLACK_UX_AND_HITL.md](file:///home/shrinet82/Opensource/SigNoz/docs/SLACK_UX_AND_HITL.md) — Interactive Slack UX & Circuit Breaker
-- [DASHBOARDS_AND_OBSERVABILITY.md](file:///home/shrinet82/Opensource/SigNoz/docs/DASHBOARDS_AND_OBSERVABILITY.md) — SigNoz Dashboards Guide
+- [README.md](../README.md) — Main Project Overview & Quickstart
+- [ARCHITECTURE.md](ARCHITECTURE.md) — System Architecture
+- [SLACK_UX_AND_HITL.md](SLACK_UX_AND_HITL.md) — Interactive Slack UX & Circuit Breaker
+- [DASHBOARDS_AND_OBSERVABILITY.md](DASHBOARDS_AND_OBSERVABILITY.md) — SigNoz Dashboards Guide

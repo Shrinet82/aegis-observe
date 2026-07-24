@@ -12,23 +12,23 @@ It connects a deterministic LLM-powered SRE agent with application telemetry in 
 
 ---
 
-## 📽️ Demo Video & Screenshot Placeholders
+## 📽️ Demo Video & Interactive Evidence
 
 > [!IMPORTANT]
 > **Submission Demonstration Artifacts**
 
 ### 🎬 Live Demo Video
-[![Aegis-Observe Hackathon Demo Video](file:///absolute/path/to/demo_video_thumbnail.png)](https://youtube.com/watch?v=YOUR_VIDEO_ID)
-*(Click to watch the full demonstration video showing real-time MCP anomaly detection, Slack interactive authorization, and GitOps remediation)*
+[![Aegis-Observe Hackathon Demo Video](docs/assets/slack_proposal_card.png)](https://youtube.com/watch?v=YOUR_VIDEO_ID)
+*(Click above to watch the full demonstration video showing real-time MCP anomaly detection, Slack interactive authorization, and GitOps remediation)*
 
 ### 📸 Visual Interface Evidence
 | Interactive Slack Proposal | Slack PR Authorized | GitHub Pull Request Created & Merged |
 | :---: | :---: | :---: |
-| ![Slack Proposal Card](file:///home/shrinet82/Opensource/SigNoz/docs/assets/slack_proposal_card.png) | ![Slack PR Authorized](file:///home/shrinet82/Opensource/SigNoz/docs/assets/slack_pr_opened.png) | ![GitHub PR #47 Merged](file:///home/shrinet82/Opensource/SigNoz/docs/assets/github_pr_merged.png) |
+| ![Slack Proposal Card](docs/assets/slack_proposal_card.png) | ![Slack PR Authorized](docs/assets/slack_pr_opened.png) | ![GitHub PR Merged](docs/assets/github_pr_merged.png) |
 
 | SigNoz Aegis Dashboard | SigNoz SRE Agent Metrics | Kubernetes Node Metrics |
 | :---: | :---: | :---: |
-| ![SigNoz Aegis Dashboard](file:///home/shrinet82/Opensource/SigNoz/docs/assets/aegis_dashboard.png) | ![SigNoz SRE Agent Metrics](file:///home/shrinet82/Opensource/SigNoz/docs/assets/sre_agent_metrics_dashboard.png) | ![K8s Node Metrics](file:///home/shrinet82/Opensource/SigNoz/docs/assets/k8s_node_metrics.png) |
+| ![SigNoz Aegis Dashboard](docs/assets/aegis_dashboard.png) | ![SigNoz SRE Agent Metrics](docs/assets/sre_agent_metrics_dashboard.png) | ![K8s Node Metrics](docs/assets/k8s_node_metrics.png) |
 
 ---
 
@@ -72,12 +72,12 @@ graph TB
 
 | Feature | Description | File Reference |
 | :--- | :--- | :--- |
-| **SigNoz MCP Telemetry Mining** | Mines ClickHouse log streams and trace indexes via Streamable HTTP MCP tools. | [mcp_client.py](file:///home/shrinet82/Opensource/SigNoz/sre-copilot/mcp_client.py) |
-| **Circuit-Breaker Locking** | `PENDING_INCIDENTS` set locks diagnostic loops while alerts sit in Slack, preventing race conditions. | [agent.py](file:///home/shrinet82/Opensource/SigNoz/sre-copilot/agent.py) |
-| **Interactive Slack Gateway** | Slack Block Kit UI with Socket Mode (`Approve`, `PR`, `Reject`) embedding stateless payloads. | [slack_notifier.py](file:///home/shrinet82/Opensource/SigNoz/sre-copilot/slack_notifier.py) |
-| **Tiered GitOps Remediation** | Tier 1 instant push to `main` vs Tier 2 GitHub PR creation with LLM reasoning breakdown. | [gitops.py](file:///home/shrinet82/Opensource/SigNoz/sre-copilot/gitops.py) |
-| **Node Cordon & Drain** | Direct Kubernetes API node cordoning and eviction for hardware pressure. | [k8s_tools.py](file:///home/shrinet82/Opensource/SigNoz/sre-copilot/k8s_tools.py) |
-| **OTel Self-Observability** | Exports agent token consumption (`gen_ai.usage.prompt_tokens`) and tool spans to SigNoz. | [agent.py](file:///home/shrinet82/Opensource/SigNoz/sre-copilot/agent.py) |
+| **SigNoz MCP Telemetry Mining** | Mines ClickHouse log streams and trace indexes via Streamable HTTP MCP tools. | [mcp_client.py](sre-copilot/mcp_client.py) |
+| **Circuit-Breaker Locking** | `PENDING_INCIDENTS` set locks diagnostic loops while alerts sit in Slack, preventing race conditions. | [agent.py](sre-copilot/agent.py) |
+| **Interactive Slack Gateway** | Slack Block Kit UI with Socket Mode (`Approve`, `PR`, `Reject`) embedding stateless payloads. | [slack_notifier.py](sre-copilot/slack_notifier.py) |
+| **Tiered GitOps Remediation** | Tier 1 instant push to `main` vs Tier 2 GitHub PR creation with LLM reasoning breakdown. | [gitops.py](sre-copilot/gitops.py) |
+| **Node Cordon & Drain** | Direct Kubernetes API node cordoning and eviction for hardware pressure. | [k8s_tools.py](sre-copilot/k8s_tools.py) |
+| **OTel Self-Observability** | Exports agent token consumption (`gen_ai.usage.prompt_tokens`) and tool spans to SigNoz. | [agent.py](sre-copilot/agent.py) |
 
 ---
 
@@ -85,8 +85,8 @@ graph TB
 
 ### 1. SigNoz Foundry Requirement (`casting.yaml`)
 In accordance with the **Foundry & Reproducibility Check**, `casting.yaml` and `casting.yaml.lock` are located at the **root of the repository**:
-* [casting.yaml](file:///home/shrinet82/Opensource/SigNoz/casting.yaml)
-* [casting.yaml.lock](file:///home/shrinet82/Opensource/SigNoz/casting.yaml.lock)
+* [casting.yaml](casting.yaml)
+* [casting.yaml.lock](casting.yaml.lock)
 
 To spin up the observability stack via Foundry:
 ```bash
@@ -105,8 +105,8 @@ In accordance with the **Agents of SigNoz Hackathon** rules, we explicitly decla
 
 For in-depth architectural guides, configuration details, and query schemas, refer to the technical docs:
 
-* 📋 **[PROJECT_OVERVIEW.md](file:///home/shrinet82/Opensource/SigNoz/PROJECT_OVERVIEW.md)** — Devpost Project Overview & Full Vision
-* 🏗️ **[docs/ARCHITECTURE.md](file:///home/shrinet82/Opensource/SigNoz/docs/ARCHITECTURE.md)** — Deep System Architecture & Telemetry Pipeline
-* 💬 **[docs/SLACK_UX_AND_HITL.md](file:///home/shrinet82/Opensource/SigNoz/docs/SLACK_UX_AND_HITL.md)** — Interactive Slack UX, Socket Mode & Circuit Breaker Guide
-* 🐙 **[docs/GITOPS_AND_REMEDIATION.md](file:///home/shrinet82/Opensource/SigNoz/docs/GITOPS_AND_REMEDIATION.md)** — GitOps Tiering & Kubernetes Remediation Engine
-* 📊 **[docs/DASHBOARDS_AND_OBSERVABILITY.md](file:///home/shrinet82/Opensource/SigNoz/docs/DASHBOARDS_AND_OBSERVABILITY.md)** — SigNoz Dashboards & ClickHouse SQL Queries
+* 📋 **[PROJECT_OVERVIEW.md](PROJECT_OVERVIEW.md)** — Devpost Project Overview & Full Vision
+* 🏗️ **[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)** — Deep System Architecture & Telemetry Pipeline
+* 💬 **[docs/SLACK_UX_AND_HITL.md](docs/SLACK_UX_AND_HITL.md)** — Interactive Slack UX, Socket Mode & Circuit Breaker Guide
+* 🐙 **[docs/GITOPS_AND_REMEDIATION.md](docs/GITOPS_AND_REMEDIATION.md)** — GitOps Tiering & Kubernetes Remediation Engine
+* 📊 **[docs/DASHBOARDS_AND_OBSERVABILITY.md](docs/DASHBOARDS_AND_OBSERVABILITY.md)** — SigNoz Dashboards & ClickHouse SQL Queries

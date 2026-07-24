@@ -81,18 +81,15 @@ Integrates Slack Bolt with **Socket Mode**:
 
 ## 🖼️ Architecture Screenshots & Visual Evidence
 
-> [!NOTE]
-> *Placeholders for visual documentation artifacts during deployment validation.*
-
-- **System Architecture Diagram**: Included above (Mermaid).
-- **SigNoz MCP Connection Trace**: `![SigNoz MCP Connection Screenshot](file:///absolute/path/to/mcp_trace.png)` *(Placeholder for live trace screenshot)*
-- **OpenTelemetry Token Usage Graph**: `![OTel Token Usage Graph](file:///absolute/path/to/token_graph.png)` *(Placeholder for dashboard screenshot)*
+| SigNoz SRE Agent Metrics Dashboard | Interactive Slack Proposal Card |
+| :---: | :---: |
+| ![SigNoz Agent Dashboard](assets/sre_agent_metrics_dashboard.png) | ![Slack Proposal Card](assets/slack_proposal_card.png) |
 
 ---
 
 ## 🔗 Related Documentation
-- [README.md](file:///home/shrinet82/Opensource/SigNoz/README.md) — Main Project Overview & Quickstart
-- [PROJECT_OVERVIEW.md](file:///home/shrinet82/Opensource/SigNoz/PROJECT_OVERVIEW.md) — Feature Deep Dive & Devpost Submission Guide
-- [SLACK_UX_AND_HITL.md](file:///home/shrinet82/Opensource/SigNoz/docs/SLACK_UX_AND_HITL.md) — Interactive Slack UX & Socket Mode Guide
-- [GITOPS_AND_REMEDIATION.md](file:///home/shrinet82/Opensource/SigNoz/docs/GITOPS_AND_REMEDIATION.md) — GitOps Tiering & Remediation Engine
-- [DASHBOARDS_AND_OBSERVABILITY.md](file:///home/shrinet82/Opensource/SigNoz/docs/DASHBOARDS_AND_OBSERVABILITY.md) — SigNoz Dashboards & ClickHouse Query Guide
+- [README.md](../README.md) — Main Project Overview & Quickstart
+- [PROJECT_OVERVIEW.md](../PROJECT_OVERVIEW.md) — Feature Deep Dive & Devpost Submission Guide
+- [SLACK_UX_AND_HITL.md](SLACK_UX_AND_HITL.md) — Interactive Slack UX & Socket Mode Guide
+- [GITOPS_AND_REMEDIATION.md](GITOPS_AND_REMEDIATION.md) — GitOps Tiering & Remediation Engine
+- [DASHBOARDS_AND_OBSERVABILITY.md](DASHBOARDS_AND_OBSERVABILITY.md) — SigNoz Dashboards & ClickHouse Query Guide

@@ -50,16 +50,16 @@ graph LR
 
 | SRE Agent Metrics Dashboard | Aegis Fleet Health & Audit Stream |
 | :---: | :---: |
-| ![SRE Agent Metrics Dashboard](file:///home/shrinet82/Opensource/SigNoz/docs/assets/sre_agent_metrics_dashboard.png) | ![Aegis Fleet Health Dashboard](file:///home/shrinet82/Opensource/SigNoz/docs/assets/aegis_dashboard.png) |
+| ![SRE Agent Metrics Dashboard](assets/sre_agent_metrics_dashboard.png) | ![Aegis Fleet Health Dashboard](assets/aegis_dashboard.png) |
 
 | Kubernetes Node Metrics | Kubernetes Workloads Overview |
 | :---: | :---: |
-| ![K8s Node Metrics](file:///home/shrinet82/Opensource/SigNoz/docs/assets/k8s_node_metrics.png) | ![K8s Workloads Overview](file:///home/shrinet82/Opensource/SigNoz/docs/assets/k8s_workloads.png) |
+| ![K8s Node Metrics](assets/k8s_node_metrics.png) | ![K8s Workloads Overview](assets/k8s_workloads.png) |
 
 ---
 
 ## 🔗 Related Documentation
-- [README.md](file:///home/shrinet82/Opensource/SigNoz/README.md) — Main Project Overview & Quickstart
-- [ARCHITECTURE.md](file:///home/shrinet82/Opensource/SigNoz/docs/ARCHITECTURE.md) — System Architecture
-- [SLACK_UX_AND_HITL.md](file:///home/shrinet82/Opensource/SigNoz/docs/SLACK_UX_AND_HITL.md) — Interactive Slack UX
-- [GITOPS_AND_REMEDIATION.md](file:///home/shrinet82/Opensource/SigNoz/docs/GITOPS_AND_REMEDIATION.md) — GitOps Tiering
+- [README.md](../README.md) — Main Project Overview & Quickstart
+- [ARCHITECTURE.md](ARCHITECTURE.md) — System Architecture
+- [SLACK_UX_AND_HITL.md](SLACK_UX_AND_HITL.md) — Interactive Slack UX
+- [GITOPS_AND_REMEDIATION.md](GITOPS_AND_REMEDIATION.md) — GitOps Tiering

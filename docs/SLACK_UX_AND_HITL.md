@@ -92,12 +92,12 @@ To prevent race conditions where the 10-second diagnostic loop re-evaluates an a
 
 | Interactive Slack Proposal Card | Slack Card Updated After User Click |
 | :---: | :---: |
-| ![Slack Proposal Card](file:///home/shrinet82/Opensource/SigNoz/docs/assets/slack_proposal_card.png) | ![Slack PR Authorized](file:///home/shrinet82/Opensource/SigNoz/docs/assets/slack_pr_opened.png) |
+| ![Slack Proposal Card](assets/slack_proposal_card.png) | ![Slack PR Authorized](assets/slack_pr_opened.png) |
 
 ---
 
 ## 🔗 Related Documentation
-- [README.md](file:///home/shrinet82/Opensource/SigNoz/README.md) — Main Project Overview & Quickstart
-- [ARCHITECTURE.md](file:///home/shrinet82/Opensource/SigNoz/docs/ARCHITECTURE.md) — System Architecture & Telemetry Pipeline
-- [GITOPS_AND_REMEDIATION.md](file:///home/shrinet82/Opensource/SigNoz/docs/GITOPS_AND_REMEDIATION.md) — GitOps Tiering & Remediation Engine
-- [DASHBOARDS_AND_OBSERVABILITY.md](file:///home/shrinet82/Opensource/SigNoz/docs/DASHBOARDS_AND_OBSERVABILITY.md) — SigNoz Dashboards Guide
+- [README.md](../README.md) — Main Project Overview & Quickstart
+- [ARCHITECTURE.md](ARCHITECTURE.md) — System Architecture & Telemetry Pipeline
+- [GITOPS_AND_REMEDIATION.md](GITOPS_AND_REMEDIATION.md) — GitOps Tiering & Remediation Engine
+- [DASHBOARDS_AND_OBSERVABILITY.md](DASHBOARDS_AND_OBSERVABILITY.md) — SigNoz Dashboards Guide
