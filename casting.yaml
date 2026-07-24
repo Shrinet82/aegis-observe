@@ -6,6 +6,55 @@ spec:
   deployment:
     flavor: helm
     mode: kubernetes
+  ingester:
+    spec:
+      cluster:
+        replicas: 1
+      env:
+        SIGNOZ_OTEL_COLLECTOR_TIMEOUT: 10m
+      image: signoz/signoz-otel-collector:latest
+      version: latest
   mcp:
     spec:
+      cluster:
+        replicas: 1
       enabled: true
+      image: signoz/signoz-mcp-server:latest
+      version: latest
+  metastore:
+    kind: postgres
+    spec:
+      cluster:
+        replicas: 1
+      env:
+        POSTGRES_DB: signoz
+        POSTGRES_PASSWORD: signoz
+        POSTGRES_USER: signoz
+      image: postgres:16
+      version: "16"
+  signoz:
+    spec:
+      cluster:
+        replicas: 1
+      env:
+        SIGNOZ_SQLSTORE_POSTGRES_DSN: postgres://signoz:signoz@signoz-metastore-postgres:5432/signoz?sslmode=disable
+        SIGNOZ_SQLSTORE_PROVIDER: postgres
+        SIGNOZ_TELEMETRYSTORE_CLICKHOUSE_DSN: tcp://signoz-telemetrystore-clickhouse:9000
+        SIGNOZ_TELEMETRYSTORE_PROVIDER: clickhouse
+      image: signoz/signoz:latest
+      version: latest
+  telemetrykeeper:
+    kind: clickhousekeeper
+    spec:
+      cluster:
+        replicas: 1
+      image: clickhouse/clickhouse-keeper:25.12.5
+      version: 25.12.5
+  telemetrystore:
+    kind: clickhouse
+    spec:
+      cluster:
+        replicas: 0
+        shards: 1
+      image: clickhouse/clickhouse-server:25.12.5
+      version: 25.12.5
