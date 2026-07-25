@@ -36,7 +36,7 @@ graph TB
     AGENT -->|"1. Poll Telemetry via Streamable HTTP"| MCP
     MCP -->|"Fetch Logs & Trace Details"| CLICKHOUSE
     AGENT -->|"2. Diagnostic Guardrails & Reasoning"| AZURE
-    AZURE -->> AGENT
+    AZURE -.->|"Response"| AGENT
 
     %% Human-in-the-Loop & Remediation Flow
     AGENT -->|"3. Interactive Proposal (Socket Mode)"| SLACK
