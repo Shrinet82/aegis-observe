@@ -62,9 +62,14 @@ def execute_tool(name: str, args: dict, reasoning: str = "", incident_type: str 
             with open(target_file, 'r') as f:
                 yaml_content = f.read()
             yaml_content = re.sub(r"replicas:\s*\d+", f"replicas: {args['replicas']}", yaml_content)
+            ts = int(time.time())
+            if "annotations:" in yaml_content:
+                yaml_content = re.sub(r"annotations:.*", f"annotations:\n        remediated_at: \"{ts}\"", yaml_content)
+            else:
+                yaml_content = yaml_content.replace("metadata:", f"metadata:\n  annotations:\n    remediated_at: \"{ts}\"", 1)
             with open(target_file, 'w') as f:
                 f.write(yaml_content)
-            commit_msg = f"[Auto-Remediation] Traffic Spike"
+            commit_msg = f"[Auto-Remediation] Traffic Spike (scaled to replicas: {args['replicas']})"
             
         elif name == "patch_pod_limits":
             with open(target_file, 'r') as f:
