@@ -69,11 +69,19 @@ def execute_tool(name: str, args: dict, reasoning: str = "", incident_type: str 
         elif name == "patch_pod_limits":
             with open(target_file, 'r') as f:
                 yaml_content = f.read()
-            yaml_content = re.sub(r"cpu:\s*\"?[0-9]+m?\"?", f"cpu: \"{args['cpu']}\"", yaml_content)
-            yaml_content = re.sub(r"memory:\s*\"?[0-9]+[A-Za-z]+\"?", f"memory: {args['memory']}", yaml_content)
+            cpu_val = str(args.get('cpu', '1000m')).strip('"\'')
+            mem_val = str(args.get('memory', '2Gi')).strip('"\'')
+            yaml_content = re.sub(r"cpu:\s*\"?[0-9]+m?\"?", f'cpu: "{cpu_val}"', yaml_content)
+            yaml_content = re.sub(r"memory:\s*\"?[0-9]+[A-Za-z]+\"?", f'memory: "{mem_val}"', yaml_content)
+            # Add/update timestamp annotation to guarantee fresh git diff
+            ts = int(time.time())
+            if "annotations:" in yaml_content:
+                yaml_content = re.sub(r"annotations:.*", f"annotations:\n        remediated_at: \"{ts}\"", yaml_content)
+            else:
+                yaml_content = yaml_content.replace("metadata:", f"metadata:\n  annotations:\n    remediated_at: \"{ts}\"", 1)
             with open(target_file, 'w') as f:
                 f.write(yaml_content)
-            commit_msg = f"[Auto-Remediation] Resource Starvation"
+            commit_msg = f"[Auto-Remediation] Resource Starvation (limits: cpu={cpu_val}, memory={mem_val})"
             
         elif name == "rollback_deployment":
             subprocess.run('git revert --no-commit HEAD', shell=True, cwd="/tmp/repo", check=True)
@@ -104,11 +112,12 @@ spec:
         
         subprocess.run('git add .', shell=True, cwd="/tmp/repo", check=True)
         subprocess.run(f'git commit -m "{commit_msg}"', shell=True, cwd="/tmp/repo", check=True)
+        commit_sha = subprocess.run('git rev-parse --short HEAD', shell=True, cwd="/tmp/repo", capture_output=True, text=True).stdout.strip()
         
         if is_tier_1:
             subprocess.run('git push origin main', shell=True, cwd="/tmp/repo", check=True)
-            logger.info("[TIER 1] Auto-remediation pushed to main.")
-            return f"GitOps Success: {commit_msg}"
+            logger.info(f"[TIER 1] Auto-remediation pushed to main (commit {commit_sha}).")
+            return f"Pushed to main (Commit {commit_sha}): {commit_msg}"
             
         elif is_tier_2:
             subprocess.run(f'git push origin {branch_name}', shell=True, cwd="/tmp/repo", check=True)

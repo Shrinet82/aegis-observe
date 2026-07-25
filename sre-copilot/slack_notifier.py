@@ -261,7 +261,7 @@ def build_interactive_proposal_blocks(
     remediation_str = "\n".join(param_changes) if param_changes else f"`{tool_name}` with {tool_args}"
 
     signoz_host = os.getenv("SIGNOZ_PUBLIC_URL", "http://localhost:8080")
-    signoz_dash_link = f"{signoz_host}/dashboard"
+    signoz_dash_link = f"{signoz_host}/dashboards"
     trace_link = f"{signoz_host}/trace/{trace_id}" if trace_id != "N/A" else f"{signoz_host}/traces"
 
     # Embed complete action state into button value payload
