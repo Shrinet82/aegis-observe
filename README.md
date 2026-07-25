@@ -137,4 +137,4 @@ For in-depth architectural guides, configuration details, and query schemas, ref
 * 💬 **[docs/SLACK_UX_AND_HITL.md](docs/SLACK_UX_AND_HITL.md)** — Interactive Slack UX, Socket Mode & Circuit Breaker Guide
 * 🐙 **[docs/GITOPS_AND_REMEDIATION.md](docs/GITOPS_AND_REMEDIATION.md)** — GitOps Tiering & Kubernetes Remediation Engine
 * 📊 **[docs/DASHBOARDS_AND_OBSERVABILITY.md](docs/DASHBOARDS_AND_OBSERVABILITY.md)** — SigNoz Dashboards, Alerts & ClickHouse SQL Queries
-* 🧠 **[MLOPS-Full-Data-Pipeline/README.md](MLOPS-Full-Data-Pipeline/README.md)** — Complete MLOps Pipeline, Model Experiments & Data Poisoning Guide
+* 🧠 **[docs/MLOPS_PIPELINE.md](docs/MLOPS_PIPELINE.md)** — Complete MLOps Pipeline, Model Experiments & Data Poisoning Guide
