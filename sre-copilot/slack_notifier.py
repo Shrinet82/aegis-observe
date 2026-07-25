@@ -260,7 +260,7 @@ def build_interactive_proposal_blocks(
             param_changes.append(f"*{k.upper()}:* `{v}`")
     remediation_str = "\n".join(param_changes) if param_changes else f"`{tool_name}` with {tool_args}"
 
-    signoz_host = os.getenv("SIGNOZ_PUBLIC_URL", "http://localhost:8080")
+    signoz_host = os.getenv("SIGNOZ_PUBLIC_URL", "http://139.59.22.142:30800")
     signoz_dash_link = f"{signoz_host}/dashboards"
     trace_link = f"{signoz_host}/trace/{trace_id}" if trace_id != "N/A" else f"{signoz_host}/traces"
 
@@ -365,7 +365,7 @@ def build_incident_blocks(incident: dict) -> list:
     description = incident.get("description", "No description provided.")
     trace_id = incident.get("trace_id", "N/A")
     
-    signoz_host = os.getenv("SIGNOZ_PUBLIC_URL", "http://localhost:8080")
+    signoz_host = os.getenv("SIGNOZ_PUBLIC_URL", "http://139.59.22.142:30800")
     trace_link = f"{signoz_host}/trace/{trace_id}" if trace_id != "N/A" else "N/A"
 
     blocks = [
