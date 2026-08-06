@@ -2,3 +2,6 @@
 	path = flagship-gitops
 	url = https://github.com/Shrinet82/flagship-gitops.git
 	branch = main
+[submodule "MLOPS-Full-Data-Pipeline"]
+	path = MLOPS-Full-Data-Pipeline
+	url = https://github.com/Shrinet82/MLOPS-Full-Data-Pipeline.git
