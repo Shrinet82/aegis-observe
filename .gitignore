@@ -5,3 +5,4 @@ terraform.tfstate*
 __pycache__/
 *.pyc
 image.png
+MLOPS-Full-Data-Pipeline/fraud-app.tar
